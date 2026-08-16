@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#0b0d12">
-<title>Игры нашего детства — Танковая база v9</title>
-<link rel="stylesheet" href="styles.css?v=9">
+<title>Игры нашего детства — Танковая база v10</title>
+<link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
 <main class="app">
@@ -14,9 +14,9 @@
     <button id="share" class="btn">Поделиться</button>
   </header>
   <section id="menu">
-    <div class="hero"><span class="badge">ДЕМО v9</span><h2>Выберите автомат</h2><p>«Танковая база» — три миссии, разные враги, бонусы, звук, пауза и усиленная оборона штаба.</p></div>
+    <div class="hero"><span class="badge">ДЕМО v10</span><h2>Выберите автомат</h2><p>«Танковая база» — три миссии, усиленная красивая защита штаба и экспериментальное сенсорное управление с джойстиком.</p></div>
     <div class="grid">
-      <button id="play" class="card active"><span class="status">ДОСТУПНО · v9</span><h3>🟩 Танковая база</h3><p>Штаб теперь имеет запас прочности и защищён укреплениями. Удержите все три рубежа.</p></button>
+      <button id="play" class="card active"><span class="status">ДОСТУПНО · v10</span><h3>🟩 Танковая база</h3><p>Штаб стал прочнее и красивее, а слева появился сенсорный джойстик для движения.</p></button>
       <div class="card locked"><span class="status">СКОРО</span><h3>🔫 Спецназ 90</h3><p>Аркада с бегом, стрельбой, усилениями и боссами.</p></div>
       <div class="card locked"><span class="status">СКОРО</span><h3>🟧 Пиксельные приключения</h3><p>Платформер с секретами, предметами и уровнями.</p></div>
     </div>
@@ -26,7 +26,7 @@
 
 <section id="game" class="hidden">
   <div class="hud">
-    <div><span>ОЧКИ · v9</span><strong id="score">0</strong></div>
+    <div><span>ОЧКИ · v10</span><strong id="score">0</strong></div>
     <div><span>МИССИЯ</span><strong id="level">1/3</strong></div>
     <div><span>ВРАГИ</span><strong id="enemies">0</strong></div>
     <div><span>ЖИЗНИ</span><strong id="lives">3</strong></div>
@@ -38,12 +38,13 @@
     <canvas id="c" width="900" height="600"></canvas>
     <div id="toast" class="toast"></div>
     <div class="controls">
-      <div class="dpad">
-        <button class="ctl up" data-k="up">▲</button>
-        <button class="ctl left" data-k="left">◀</button>
-        <button class="ctl right" data-k="right">▶</button>
-        <button class="ctl down" data-k="down">▼</button>
+      <div class="touchpadWrap">
+        <div class="touchpadLabel">движение</div>
+        <div id="touchpad" class="touchpad">
+          <div id="stick" class="stick"></div>
+        </div>
       </div>
+      <div class="touchHint">Слева: ведите пальцем. Справа: огонь.</div>
       <button class="fire" data-k="fire">ОГОНЬ</button>
     </div>
   </div>
@@ -52,6 +53,7 @@
 <div id="over" class="modal hidden"><div class="dialog"><span id="resultBadge" class="badge">РАУНД</span><h2 id="resultTitle">Готово</h2><p id="resultText"></p><div class="actions"><button id="primaryAction" class="btn primary">Продолжить</button><button id="toMenu" class="btn">В меню</button></div><div id="resultMini" class="mini"></div></div></div>
 <div id="pauseModal" class="modal hidden"><div class="dialog"><span class="badge">ПАУЗА</span><h2>Бой приостановлен</h2><p>Можно продолжить с того же места или вернуться в меню.</p><div class="actions"><button id="resume" class="btn primary">Продолжить</button><button id="pauseMenu" class="btn">В меню</button></div></div></div>
 
-<script src="app.js?v=9"></script>
+<script src="app-core.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
