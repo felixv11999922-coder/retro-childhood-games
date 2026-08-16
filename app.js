@@ -1,9 +1,11 @@
 'use strict';
 
-// v10: сенсорный джойстик + визуальный апгрейд штаба поверх стабильного ядра v9.
+// v11: сенсорный джойстик + визуальный апгрейд штаба + 2 повтора текущей миссии.
 const v10Pad = document.getElementById('touchpad');
 const v10Stick = document.getElementById('stick');
 let v10Touch = {active:false,id:null,x:0,y:0,max:42};
+let v11RetriesRemaining = 2;
+let v11MissionStartScore = 0;
 
 function v10ResetStick(){
   v10Touch.active=false; v10Touch.id=null; v10Touch.x=0; v10Touch.y=0;
@@ -50,7 +52,54 @@ showMenu=function(){v10ResetStick();return v9ShowMenu()};
 const v9ShowResult=showResult;
 showResult=function(opts){v10ResetStick();return v9ShowResult(opts)};
 
-// Более выразительный штаб: бетонный бункер, амбразуры, флаг/антенна и прочность.
+// При полном старте кампании даём по 2 продолжения на текущую миссию.
+const v9ResetCampaign=resetCampaign;
+resetCampaign=function(){
+  v11RetriesRemaining=2;
+  v11MissionStartScore=0;
+  return v9ResetCampaign();
+};
+
+// Перехватываем поражение: первые два раза разрешаем повторить именно текущую миссию.
+const v9Finish=finish;
+finish=function(win,reason){
+  if(win) return v9Finish(win,reason);
+  if(!running) return;
+  if(v11RetriesRemaining>0){
+    sfx('lose');
+    showResult({
+      badge:'ПОРАЖЕНИЕ',
+      title:'Оборона прорвана',
+      text:`${reason}. Можно повторить миссию ${levelIndex+1}/${LEVELS.length}.`,
+      button:'Повторить миссию',
+      mode:'v11retry',
+      mini:`Доступно продолжений: ${v11RetriesRemaining}. Миссия начнётся заново с 3 жизнями.`
+    });
+    return;
+  }
+  return v9Finish(false,reason);
+};
+
+// Кнопка результата: новая миссия сбрасывает лимит попыток, повтор возвращает к началу той же миссии.
+$('primaryAction').onclick=()=>{
+  if(primaryMode==='next'){
+    levelIndex++;
+    v11RetriesRemaining=2;
+    v11MissionStartScore=score;
+    startLevel();
+  }else if(primaryMode==='v11retry'){
+    v11RetriesRemaining=Math.max(0,v11RetriesRemaining-1);
+    score=v11MissionStartScore;
+    lives=3;
+    rapidUntil=0;
+    shieldUntil=0;
+    startLevel();
+  }else{
+    resetCampaign();
+  }
+};
+
+// Более выразительный штаб: бетонный бункер, амбразуры, антенна и прочность.
 drawBase=function(){
   const ratio=Math.max(0,base.hp/base.maxHp),x=base.x,y=base.y;
   const body=ratio>.66?'#c7a84f':ratio>.33?'#b77b43':'#9b5040';
@@ -86,15 +135,13 @@ function v10FortDecor(){
   }
   ctx.fillStyle='#6b7785';ctx.fillRect(base.x-9,base.y-52,base.w+18,5);
   ctx.fillStyle='#9aa5b1';ctx.fillRect(base.x-5,base.y-51,base.w+10,2);
-  ctx.fillStyle='#18202a';ctx.fillRect(base.x+18,base.y-48,20,13);
-  ctx.fillStyle='#f2ca4b';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('HQ',base.x+28,base.y-41);
   ctx.restore();
 }
 const v9Draw=draw;
 draw=function(){v9Draw();v10FortDecor()};
 
 const hudLabel=document.querySelector('.hud div:first-child span');
-if(hudLabel)hudLabel.textContent='ОЧКИ · v10';
+if(hudLabel)hudLabel.textContent='ОЧКИ · v11';
 
 addEventListener('blur',v10ResetStick);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')v10ResetStick()});
