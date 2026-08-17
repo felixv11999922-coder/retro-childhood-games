@@ -18,6 +18,9 @@
   function robustStart(ev){
     if(ev){ev.preventDefault();ev.stopImmediatePropagation();}
     try{
+      const se=document.scrollingElement||document.documentElement;
+      if(se){se.scrollLeft=0;se.scrollTop=0;}
+      window.scrollTo(0,0);
       document.documentElement.style.overflow='hidden';
       document.body.classList.add('playing');
       const game=document.getElementById('game');
@@ -27,8 +30,6 @@
       game.classList.remove('hidden');
       if(over)over.classList.add('hidden');
       if(pauseModal)pauseModal.classList.add('hidden');
-      window.scrollTo(0,0);
-
       if(typeof audio==='function')audio();
       if(typeof resetCampaign!=='function')throw new Error('resetCampaign не загружен');
       resetCampaign();
@@ -42,17 +43,11 @@
     }
   }
 
-  // Capture-phase click wins over any stale onclick and fires once on iPad/Safari.
   play.addEventListener('click',robustStart,true);
-
-  window.addEventListener('error',e=>{
-    if(document.body.classList.contains('playing'))showBootError(e.error||new Error(e.message||'JavaScript error'));
-  });
-  window.addEventListener('unhandledrejection',e=>{
-    if(document.body.classList.contains('playing'))showBootError(e.reason||new Error('Unhandled promise rejection'));
-  });
+  window.addEventListener('error',e=>{if(document.body.classList.contains('playing'))showBootError(e.error||new Error(e.message||'JavaScript error'))});
+  window.addEventListener('unhandledrejection',e=>{if(document.body.classList.contains('playing'))showBootError(e.reason||new Error('Unhandled promise rejection'))});
 
   const label=document.querySelector('.hud>div:first-child span');
-  if(label)label.textContent='ОЧКИ · v14.6';
-  console.info('Tank Base v14.6: robust boot controller active');
+  if(label)label.textContent='ОЧКИ · v14.7';
+  console.info('Tank Base v14.7: robust boot controller active');
 })();
