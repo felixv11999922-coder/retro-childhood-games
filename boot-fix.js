@@ -32,7 +32,6 @@
       if(typeof audio==='function')audio();
       if(typeof resetCampaign!=='function')throw new Error('resetCampaign не загружен');
       resetCampaign();
-
       if(typeof fitGameBurst==='function')setTimeout(()=>fitGameBurst(),0);
     }catch(err){
       document.body.classList.remove('playing');
@@ -43,11 +42,8 @@
     }
   }
 
-  // Capture-phase handler wins over any stale onclick registered by previous builds.
+  // Capture-phase click wins over any stale onclick and fires once on iPad/Safari.
   play.addEventListener('click',robustStart,true);
-  play.addEventListener('pointerup',e=>{
-    if(e.pointerType==='touch'||e.pointerType==='pen')robustStart(e);
-  },true);
 
   window.addEventListener('error',e=>{
     if(document.body.classList.contains('playing'))showBootError(e.error||new Error(e.message||'JavaScript error'));
