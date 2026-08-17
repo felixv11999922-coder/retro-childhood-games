@@ -32,7 +32,6 @@
       if(typeof audio==='function')audio();
       if(typeof resetCampaign!=='function')throw new Error('resetCampaign не загружен');
       resetCampaign();
-      if(typeof fitGameBurst==='function')setTimeout(()=>fitGameBurst(),0);
     }catch(err){
       document.body.classList.remove('playing');
       const game=document.getElementById('game');if(game)game.classList.add('hidden');
@@ -43,6 +42,6 @@
   play.addEventListener('click',robustStart,true);
   window.addEventListener('error',e=>{if(document.body.classList.contains('playing'))showBootError(e.error||new Error(e.message||'JavaScript error'))});
   window.addEventListener('unhandledrejection',e=>{if(document.body.classList.contains('playing'))showBootError(e.reason||new Error('Unhandled promise rejection'))});
-  const label=document.querySelector('.hud>div:first-child span');if(label)label.textContent='ОЧКИ · v14.9';
-  console.info('Tank Base v14.9: robust boot controller active');
+  const label=document.querySelector('.hud>div:first-child span');if(label)label.textContent='ОЧКИ · v15.0';
+  console.info('Tank Base v15.0: direct viewport boot active');
 })();
