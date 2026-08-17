@@ -1,152 +1,39 @@
 'use strict';
-
-// v12: стабильный iPad layout + красивый разрушаемый штаб + сенсорный джойстик + 2 повтора миссии.
-const v12Pad=document.getElementById('touchpad');
-const v12Stick=document.getElementById('stick');
-let v12Touch={active:false,id:null,x:0,y:0,max:42};
-let v12Retries=2;
-let v12MissionStartScore=0;
-let v12RefitTimer=0;
-
-function v12ResetStick(){
-  v12Touch.active=false;v12Touch.id=null;v12Touch.x=0;v12Touch.y=0;
-  if(v12Stick)v12Stick.style.transform='translate(0px,0px)';
-}
-function v12UpdateStick(clientX,clientY){
-  if(!v12Pad||!v12Stick)return;
-  const r=v12Pad.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
-  let dx=clientX-cx,dy=clientY-cy,len=Math.hypot(dx,dy),max=v12Touch.max;
-  if(len>max){dx=dx/len*max;dy=dy/len*max}
-  v12Stick.style.transform=`translate(${dx}px,${dy}px)`;
-  v12Touch.x=dx/max;v12Touch.y=dy/max;
-}
-function v12ApplyDirection(){
-  if(!v12Touch.active)return;
-  keys.up=keys.down=keys.left=keys.right=0;
-  const x=v12Touch.x,y=v12Touch.y;
-  if(Math.abs(x)<.18&&Math.abs(y)<.18)return;
-  if(Math.abs(x)>Math.abs(y))keys[x>0?'right':'left']=1;
-  else keys[y>0?'down':'up']=1;
-}
-if(v12Pad){
-  v12Pad.addEventListener('pointerdown',e=>{e.preventDefault();audio();v12Touch.active=true;v12Touch.id=e.pointerId;try{v12Pad.setPointerCapture(e.pointerId)}catch{}v12UpdateStick(e.clientX,e.clientY)},{passive:false});
-  v12Pad.addEventListener('pointermove',e=>{if(v12Touch.active&&e.pointerId===v12Touch.id){e.preventDefault();v12UpdateStick(e.clientX,e.clientY)}},{passive:false});
-  for(const ev of ['pointerup','pointercancel','lostpointercapture'])v12Pad.addEventListener(ev,e=>{if(e.pointerId===v12Touch.id){e.preventDefault();keys.up=keys.down=keys.left=keys.right=0;v12ResetStick()}},{passive:false});
-}
-
-// Не доверяем visualViewport.width: на iPad Safari он иногда кратковременно становится узким,
-// из-за чего всё поле уезжало влево и оставалась одна кнопка ОГОНЬ.
-function v12Refit(){
-  const game=$('game');
-  if(!game||game.classList.contains('hidden')||!document.body.classList.contains('playing'))return;
-  const doc=document.documentElement;
-  const vw=Math.max(window.innerWidth||0,doc.clientWidth||0,900);
-  const vh=Math.max(window.innerHeight||0,doc.clientHeight||0,420);
-  game.style.left='0px';game.style.top='0px';game.style.right='auto';game.style.bottom='auto';
-  game.style.width=vw+'px';game.style.height=vh+'px';
-  const hud=game.querySelector('.hud'),stage=game.querySelector('.stage');
-  if(!hud||!stage)return;
-  const cs=getComputedStyle(game),py=parseFloat(cs.paddingTop||0)+parseFloat(cs.paddingBottom||0);
-  const availableH=Math.max(150,vh-hud.getBoundingClientRect().height-py-7);
-  const availableW=Math.max(240,vw-16);
-  stage.style.width=availableW+'px';stage.style.maxWidth='100%';stage.style.height=availableH+'px';stage.style.minWidth='0';
-  const scale=Math.min(availableW/W,availableH/H);
-  c.style.position='absolute';c.style.left='50%';c.style.top='50%';c.style.transform='translate(-50%,-50%)';
-  c.style.width=Math.floor(W*scale)+'px';c.style.height=Math.floor(H*scale)+'px';
-}
-function v12RefitBurst(){
-  clearTimeout(v12RefitTimer);v12Refit();requestAnimationFrame(v12Refit);
-  setTimeout(v12Refit,60);setTimeout(v12Refit,160);v12RefitTimer=setTimeout(v12Refit,360);
-}
-
-const v12CoreUpdate=update;
-update=function(dt){v12ApplyDirection();return v12CoreUpdate(dt)};
-
-// На всех трёх миссиях защита штаба разрушаемая. Никакой стали по бокам на 3-й миссии.
-addHQFortification=function(){
-  addWall(380,500,3,0);addWall(422,500,3,0);addWall(464,500,3,0);
-  addWall(380,542,3,0);addWall(482,542,3,0);
-};
-
-const v12CoreReset=resetCampaign;
-resetCampaign=function(){v12Retries=2;v12MissionStartScore=0;const out=v12CoreReset();v12RefitBurst();return out};
-
-const v12CoreFinish=finish;
-finish=function(win,reason){
-  if(win)return v12CoreFinish(win,reason);
-  if(!running)return;
-  if(v12Retries>0){
-    sfx('lose');
-    showResult({badge:'ПОРАЖЕНИЕ',title:'Оборона прорвана',text:`${reason}. Можно повторить миссию ${levelIndex+1}/${LEVELS.length}.`,button:'Повторить миссию',mode:'v12retry',mini:`Доступно продолжений: ${v12Retries}. Миссия начнётся заново с 3 жизнями.`});
-    return;
-  }
-  return v12CoreFinish(false,reason);
-};
-
-$('primaryAction').onclick=()=>{
-  if(primaryMode==='next'){
-    levelIndex++;v12Retries=2;v12MissionStartScore=score;startLevel();
-  }else if(primaryMode==='v12retry'){
-    v12Retries=Math.max(0,v12Retries-1);score=v12MissionStartScore;lives=3;rapidUntil=0;shieldUntil=0;startLevel();
-  }else resetCampaign();
-  v12RefitBurst();
-};
-
-// Сам штаб — компактный бетонный бункер без надписи HQ.
-drawBase=function(){
-  const ratio=Math.max(0,base.hp/base.maxHp),x=base.x,y=base.y;
-  const body=ratio>.66?'#c8aa55':ratio>.33?'#b77b43':'#985143';
-  ctx.save();
-  ctx.fillStyle='#0008';ctx.fillRect(x+5,y+6,base.w,base.h);
-  ctx.fillStyle='#5f6976';ctx.fillRect(x-5,y-7,base.w+10,10);
-  ctx.fillStyle='#9ba6b2';ctx.fillRect(x-2,y-5,base.w+4,3);
-  ctx.fillStyle=body;ctx.fillRect(x,y,base.w,base.h);
-  ctx.strokeStyle='#ead58e';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,base.w-2,base.h-2);
-  ctx.fillStyle='#252117';ctx.fillRect(x+19,y+14,18,27);
-  ctx.fillStyle='#504936';ctx.fillRect(x+22,y+17,12,21);
-  ctx.fillStyle='#15191d';ctx.fillRect(x+7,y+17,9,5);ctx.fillRect(x+40,y+17,9,5);
-  ctx.fillStyle='#f6c956';ctx.fillRect(x+9,y+18,5,2);ctx.fillRect(x+42,y+18,5,2);
-  ctx.strokeStyle='#c6d1dc';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+46,y);ctx.lineTo(x+46,y-19);ctx.stroke();
-  ctx.fillStyle='#ed6a62';ctx.fillRect(x+46,y-19,12,7);
-  ctx.fillStyle='#0b0d12';ctx.fillRect(x-2,y-14,base.w+4,6);
-  ctx.fillStyle=ratio>.66?'#74e0a1':ratio>.33?'#f2ca4b':'#ed6a62';ctx.fillRect(x,y-13,base.w*ratio,4);
-  ctx.restore();
-};
-
-// Декор фортификаций: кирпично-бетонные секции с видимым износом, но они остаются обычными стенами.
-function v12FortDecor(){
-  if(!base||!base.alive)return;
-  const cells=[[380,500],[422,500],[464,500],[380,542],[482,542]];
-  ctx.save();
-  for(const [x,y] of cells){
-    const w=walls.find(q=>Math.abs(q.x-x)<2&&Math.abs(q.y-y)<2);
-    if(!w)continue;
-    const fill=w.hp>=3?'#ad8a60':w.hp===2?'#936f50':'#6e4f3d';
-    ctx.fillStyle=fill;ctx.fillRect(x+2,y+2,34,34);
-    ctx.strokeStyle='#d8bd8c';ctx.lineWidth=2;ctx.strokeRect(x+3,y+3,32,32);
-    ctx.strokeStyle='#4b382c';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(x+3,y+18);ctx.lineTo(x+35,y+18);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(x+19,y+3);ctx.lineTo(x+19,y+18);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(x+11,y+18);ctx.lineTo(x+11,y+35);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(x+27,y+18);ctx.lineTo(x+27,y+35);ctx.stroke();
-    ctx.fillStyle='#f1d6a255';ctx.fillRect(x+6,y+6,10,3);
-    if(w.hp===1){ctx.strokeStyle='#2c1f1a';ctx.beginPath();ctx.moveTo(x+7,y+8);ctx.lineTo(x+18,y+20);ctx.lineTo(x+13,y+31);ctx.stroke()}
-  }
-  ctx.fillStyle='#626e7a';ctx.fillRect(base.x-9,base.y-52,base.w+18,5);
-  ctx.fillStyle='#a3adb7';ctx.fillRect(base.x-5,base.y-51,base.w+10,2);
-  ctx.restore();
-}
-const v12CoreDraw=draw;
-draw=function(){v12CoreDraw();v12FortDecor()};
-
-const hudLabel=document.querySelector('.hud div:first-child span');if(hudLabel)hudLabel.textContent='ОЧКИ · v12';
-const movementLabel=document.querySelector('.touchpadLabel');if(movementLabel)movementLabel.remove();
-const touchHint=document.querySelector('.touchHint');if(touchHint)touchHint.remove();
-
-for(const id of ['play','pause','resume','primaryAction']){const el=$(id);if(el)el.addEventListener('click',()=>setTimeout(v12RefitBurst,0))}
-addEventListener('blur',()=>{v12ResetStick();v12RefitBurst()});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')v12ResetStick();else v12RefitBurst()});
-addEventListener('focus',v12RefitBurst);addEventListener('pageshow',v12RefitBurst);addEventListener('resize',v12RefitBurst);addEventListener('orientationchange',()=>setTimeout(v12RefitBurst,100));
-if(window.visualViewport){visualViewport.addEventListener('resize',v12RefitBurst);visualViewport.addEventListener('scroll',v12RefitBurst)}
-setInterval(()=>{if(document.body.classList.contains('playing'))v12Refit()},700);
-requestAnimationFrame(v12RefitBurst);
+// v14 compatibility layer: 26x26 micro-grid, 2x2 tank/HQ anchors, scalable terrain art, stable iPad viewport.
+(function(){
+  function microRect(c,r,wc=2,hc=2,inset=2){return {x:px(c)+inset,y:py(r)+inset,w:TILE_SIZE*wc-inset*2,h:TILE_SIZE*hc-inset*2}}
+  addHQFortification=function(){
+    const cells=[];
+    for(let r=22;r<=23;r++)for(let c=10;c<=15;c++)cells.push([c,r]);
+    for(let r=24;r<=25;r++){cells.push([10,r],[11,r],[14,r],[15,r])}
+    for(const [c0,r0] of cells)obstacles.push(createObstacle({c:c0,r:r0,type:'BRICK'}));
+  };
+  makeBase=function(){const q=microRect(HQ_COL,HQ_ROW,2,2,2);return {...q,alive:1,hp:3,maxHp:3}};
+  spawnPlayer=function(){
+    const candidates=[[PLAYER_SPAWN.c,PLAYER_SPAWN.r],[8,22],[6,24],[16,24],[6,22]];
+    player={...microRect(candidates[0][0],candidates[0][1],2,2,3),dir:'up',speed:158,alive:1,vx:0,vy:0};
+    for(const [cc,rr] of candidates){const q=microRect(cc,rr,2,2,3);Object.assign(player,q);if(!collidesEnvironment(player)&&!hit(player,base))break}
+  };
+  getSpawnRect=function(sp){return microRect(sp.c,sp.r,2,2,3)};
+  drawIce=function(cc,rr){const x=px(cc),y=py(rr),s=TILE_SIZE;ctx.fillStyle='#8edcf2';ctx.fillRect(x,y,s,s);ctx.fillStyle='#d8f8ff';ctx.fillRect(x+s*.12,y+s*.18,s*.48,Math.max(1,s*.09));ctx.strokeStyle='#eefcff';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+s*.7,y+s*.12);ctx.lineTo(x+s*.48,y+s*.48);ctx.lineTo(x+s*.72,y+s*.78);ctx.stroke()};
+  drawWater=function(o){const x=o.x,y=o.y,s=o.w,t=Math.floor(performance.now()/260);ctx.fillStyle='#235a9a';ctx.fillRect(x,y,o.w,o.h);ctx.fillStyle='#55a0dd';for(let k=0;k<2;k++){const yy=y+s*(.28+k*.38),off=(t+k*5)%Math.max(4,Math.floor(s*.35));ctx.fillRect(x+2+off,yy,Math.max(5,s*.45),Math.max(1,s*.08))}};
+  drawSteel=function(o){const x=o.x,y=o.y,s=o.w;ctx.fillStyle='#737f90';ctx.fillRect(x,y,s,o.h);ctx.fillStyle='#aeb8c5';ctx.fillRect(x+s*.12,y+s*.12,s*.76,Math.max(2,s*.12));ctx.strokeStyle='#cbd2db';ctx.lineWidth=1;ctx.strokeRect(x+1.5,y+1.5,s-3,o.h-3);ctx.fillStyle='#3e4855';const d=Math.max(2,s*.1);for(const [dx,dy] of [[.18,.2],[.72,.2],[.18,.72],[.72,.72]])ctx.fillRect(x+s*dx,y+s*dy,d,d)};
+  drawBrickSegment=function(x,y,w,h,damaged=0){ctx.fillStyle=damaged?'#7d4435':'#9b523d';ctx.fillRect(x,y,w,h);ctx.fillStyle='#cf8061';ctx.fillRect(x+1,y+1,Math.max(1,w-2),Math.max(1,h*.16));ctx.fillStyle='#583026';ctx.fillRect(x,y+h*.48,w,Math.max(1,h*.11));ctx.fillRect(x+w*.48,y,Math.max(1,w*.1),h*.48);ctx.strokeStyle='#d89270';ctx.lineWidth=.7;ctx.strokeRect(x+.4,y+.4,Math.max(0,w-.8),Math.max(0,h-.8))};
+  drawBush=function(cc,rr){const x=px(cc),y=py(rr),s=TILE_SIZE;ctx.save();ctx.globalAlpha=.93;const colors=['#22562e','#2e7139','#478f4d'];for(let i=0;i<8;i++){ctx.fillStyle=colors[i%3];const d=Math.max(4,s*.34),dx=((i*7)%Math.max(1,s-d)),dy=((i*11)%Math.max(1,s-d));ctx.fillRect(x+dx,y+dy,d,d)}ctx.restore()};
+  drawBase=function(){const ratio=base.hp/base.maxHp,x=base.x,y=base.y,w=base.w,h=base.h;ctx.save();ctx.fillStyle='#0008';ctx.fillRect(x+4,y+5,w,h);ctx.fillStyle='#69737f';ctx.fillRect(x-3,y-4,w+6,7);ctx.fillStyle=ratio>.66?'#d0ad4c':ratio>.33?'#bc7e43':'#a35342';ctx.fillRect(x,y,w,h);ctx.strokeStyle='#f1d993';ctx.lineWidth=1.5;ctx.strokeRect(x+1,y+1,w-2,h-2);ctx.fillStyle='#242018';ctx.fillRect(x+w*.34,y+h*.38,w*.32,h*.62);ctx.fillStyle='#111820';ctx.fillRect(x+w*.12,y+h*.34,w*.16,h*.12);ctx.fillRect(x+w*.72,y+h*.34,w*.16,h*.12);ctx.strokeStyle='#cbd4dc';ctx.beginPath();ctx.moveTo(x+w*.76,y);ctx.lineTo(x+w*.76,y-h*.28);ctx.stroke();ctx.fillStyle='#ed6a62';ctx.fillRect(x+w*.76,y-h*.28,w*.22,Math.max(3,h*.12));ctx.fillStyle='#0b0d12';ctx.fillRect(x,y-8,w,4);ctx.fillStyle=ratio>.66?'#74e0a1':ratio>.33?'#f2ca4b':'#ed6a62';ctx.fillRect(x,y-8,w*ratio,4);ctx.restore()};
+  tank=function(t,col){const w=t.w,h=t.h,cx=t.x+w/2,cy=t.y+h/2;ctx.save();ctx.translate(cx,cy);ctx.rotate(t.dir==='up'?0:t.dir==='right'?Math.PI/2:t.dir==='down'?Math.PI:-Math.PI/2);const tw=Math.min(w,h),track=Math.max(4,tw*.16),bodyW=tw*.54,bodyH=tw*.66;ctx.fillStyle=col;ctx.fillRect(-tw*.42,-tw*.42,track,tw*.84);ctx.fillRect(tw*.42-track,-tw*.42,track,tw*.84);ctx.fillRect(-bodyW/2,-bodyH/2,bodyW,bodyH);ctx.fillStyle='#e7edf7';ctx.fillRect(-tw*.09,-tw*.22,tw*.18,tw*.37);ctx.fillRect(-tw*.045,-tw*.58,tw*.09,tw*.42);if(t.maxHp>1){ctx.fillStyle='#111';ctx.fillRect(-tw*.24,tw*.31,tw*.48,Math.max(2,tw*.07));ctx.fillStyle=t.hp/t.maxHp>.5?'#74e0a1':'#f2ca4b';ctx.fillRect(-tw*.24,tw*.31,tw*.48*(t.hp/t.maxHp),Math.max(2,tw*.07))}ctx.restore()};
+  const oldFit=fitGame;
+  fitGame=function(){
+    const game=$('game');if(!game||game.classList.contains('hidden'))return;
+    const doc=document.documentElement,vw=Math.max(window.innerWidth||0,doc.clientWidth||0,320),vh=Math.max(window.innerHeight||0,doc.clientHeight||0,320);
+    game.style.left='0px';game.style.top='0px';game.style.width=vw+'px';game.style.height=vh+'px';
+    const hud=game.querySelector('.hud'),stage=game.querySelector('.stage');if(!hud||!stage)return oldFit();
+    const cs=getComputedStyle(game),pyv=parseFloat(cs.paddingTop||0)+parseFloat(cs.paddingBottom||0),availableH=Math.max(140,vh-hud.getBoundingClientRect().height-pyv-7),availableW=Math.max(200,vw-16);
+    stage.style.height=availableH+'px';stage.style.width='100%';stage.style.minWidth='0';
+    const scale=Math.min(availableW/W,availableH/H);c.style.position='absolute';c.style.left='50%';c.style.top='50%';c.style.transform='translate(-50%,-50%)';c.style.width=Math.floor(W*scale)+'px';c.style.height=Math.floor(H*scale)+'px';
+  };
+  fitGameBurst=function(){clearTimeout(refitTimer);fitGame();requestAnimationFrame(fitGame);setTimeout(fitGame,70);setTimeout(fitGame,190);refitTimer=setTimeout(fitGame,380)};
+  const label=document.querySelector('.hud>div:first-child span');if(label)label.textContent='ОЧКИ · v14';
+  addEventListener('resize',fitGameBurst);addEventListener('orientationchange',()=>setTimeout(fitGameBurst,120));addEventListener('pageshow',fitGameBurst);addEventListener('focus',fitGameBurst);if(window.visualViewport){visualViewport.addEventListener('resize',fitGameBurst);visualViewport.addEventListener('scroll',fitGameBurst)}
+  console.info('Tank Base v14: 26x26 micro-grid active', {COLS,ROWS,TILE_SIZE,HQ:[HQ_COL,HQ_ROW],spawns:SPAWN_POINTS});
+})();
