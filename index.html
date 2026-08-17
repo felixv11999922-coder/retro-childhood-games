@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0b0d12">
-<title>Игры нашего детства — Танковая база v15.1</title>
-<link rel="stylesheet" href="styles.css?v=15.1">
-<link rel="stylesheet" href="layout-fix.css?v=15.1">
+<title>Игры нашего детства — Танковая база v15.2</title>
+<link rel="stylesheet" href="styles.css?v=15.2">
+<link rel="stylesheet" href="layout-fix.css?v=15.2">
 </head>
 <body>
 <main class="app">
@@ -16,13 +16,13 @@
   </header>
   <section id="menu">
     <div class="hero">
-      <span class="badge">ФУНДАМЕНТ v15.1</span>
+      <span class="badge">ФУНДАМЕНТ v15.2</span>
       <h2>Танковая база</h2>
       <p>Сетка 26×26 микротайлов, квадратное игровое поле, фиксированный штаб, три верхних точки появления и 20 противников на каждом из 50 уровней.</p>
       <div class="heroActions"><button id="play" class="btn primary">Начать кампанию</button></div>
     </div>
     <div class="grid">
-      <div class="card active"><span class="status">v15.1 · 26×26</span><h3>🟩 Танковая база</h3><p>Кирпич, сталь, вода, кусты и лёд на квадратной микросетке в духе классических танковых аркад.</p></div>
+      <div class="card active"><span class="status">v15.2 · 26×26</span><h3>🟩 Танковая база</h3><p>Кирпич, сталь, вода, кусты и лёд на квадратной микросетке в духе классических танковых аркад.</p></div>
       <div class="card locked"><span class="status">СКОРО</span><h3>🔫 Спецназ 90</h3><p>Аркада с бегом, стрельбой, усилениями и боссами.</p></div>
       <div class="card locked"><span class="status">СКОРО</span><h3>🟧 Пиксельные приключения</h3><p>Платформер с секретами, предметами и уровнями.</p></div>
     </div>
@@ -32,7 +32,7 @@
 
 <section id="game" class="hidden">
   <div class="hud">
-    <div><span>ОЧКИ · v15.1</span><strong id="score">0</strong></div>
+    <div><span>ОЧКИ · v15.2</span><strong id="score">0</strong></div>
     <div><span>УРОВЕНЬ</span><strong id="level">1/50</strong></div>
     <div><span>ФАЗА</span><strong id="wave">1/3</strong></div>
     <div><span>ВРАГИ</span><strong id="enemies">20</strong></div>
@@ -54,12 +54,13 @@
 <div id="over" class="modal hidden"><div class="dialog"><span id="resultBadge" class="badge">РАУНД</span><h2 id="resultTitle">Готово</h2><p id="resultText"></p><div class="actions"><button id="primaryAction" class="btn primary">Продолжить</button><button id="toMenu" class="btn">В меню</button></div><div id="resultMini" class="mini"></div></div></div>
 <div id="pauseModal" class="modal hidden"><div class="dialog"><span class="badge">ПАУЗА</span><h2>Бой приостановлен</h2><p>Можно продолжить с того же места или вернуться в меню.</p><div class="actions"><button id="resume" class="btn primary">Продолжить</button><button id="pauseMenu" class="btn">В меню</button></div></div></div>
 
-<script src="campaign.js?v=15.1"></script>
-<script src="geometry-fix.js?v=15.1"></script>
-<script src="app-core.js?v=15.1"></script>
-<script src="app.js?v=15.1"></script>
-<script src="zoom-control.js?v=15.1"></script>
-<script src="boot-fix.js?v=15.1"></script>
-<!-- v15.1: pinch zoom + two-finger pan; pages rebuild 2026-08-17T15:36+03 -->
+<script src="campaign.js?v=15.2"></script>
+<script src="geometry-fix.js?v=15.2"></script>
+<script src="app-core.js?v=15.2"></script>
+<script src="runtime-fix.js?v=15.2"></script>
+<script src="app.js?v=15.2"></script>
+<script src="zoom-control.js?v=15.2"></script>
+<script src="boot-fix.js?v=15.2"></script>
+<!-- v15.2: HQ/grid/spawn/render stability pass; rebuild 2026-08-17 -->
 </body>
 </html>
