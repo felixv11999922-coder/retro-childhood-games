@@ -1,77 +1,64 @@
 'use strict';
 (function(){
-  const gameEl=document.getElementById('game');
-  const stageEl=document.getElementById('stageStable');
-  const playfield=document.getElementById('playfieldStable');
-  const hudEl=gameEl?.querySelector('.hud');
-  const canvasEl=document.getElementById('c');
-  if(!gameEl||!stageEl||!playfield||!hudEl||!canvasEl)return;
+  const game=document.getElementById('game');
+  const stage=document.getElementById('stageStable');
+  const canvas=document.getElementById('c');
+  const hud=game?.querySelector('.hud');
+  if(!game||!stage||!canvas||!hud)return;
+  let raf=0,timer=0,last='';
 
-  let rafId=0,timerId=0,last='';
-
-  function clearLegacyGeometry(){
-    for(const el of [gameEl,stageEl,canvasEl]){
-      for(const p of ['position','inset','left','top','right','bottom','width','height','max-width','max-height','transform','margin'])el.style.removeProperty(p);
-    }
-  }
-
-  function forceOrigin(){
-    try{
-      const se=document.scrollingElement||document.documentElement;
-      if(se){se.scrollLeft=0;se.scrollTop=0;}
-      if(window.scrollX!==0||window.scrollY!==0)window.scrollTo(0,0);
-    }catch{}
-  }
-
-  function fitV147(){
-    if(gameEl.classList.contains('hidden')||!document.body.classList.contains('playing'))return;
-    clearLegacyGeometry();
-    forceOrigin();
-
-    const r=playfield.getBoundingClientRect();
-    if(r.width<100||r.height<100)return;
-
-    const W=canvasEl.width||900,H=canvasEl.height||600;
-    const aw=Math.max(80,r.width-8),ah=Math.max(80,r.height-8);
-    const scale=Math.min(aw/W,ah/H);
-    const cw=Math.max(1,Math.floor(W*scale));
-    const ch=Math.max(1,Math.floor(H*scale));
+  function viewport(){
     const vv=window.visualViewport;
-    const sig=[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height),cw,ch,Math.round(vv?.width||window.innerWidth),Math.round(vv?.height||window.innerHeight)].join(':');
+    return {
+      w:Math.max(320,Math.round(vv?.width||window.innerWidth||320)),
+      h:Math.max(320,Math.round(vv?.height||window.innerHeight||320))
+    };
+  }
+
+  function clearLegacy(){
+    for(const el of [game,stage,canvas])for(const p of ['left','top','right','bottom','inset','width','height','max-width','max-height','transform','margin','position'])el.style.removeProperty(p);
+  }
+
+  function fit(){
+    if(game.classList.contains('hidden')||!document.body.classList.contains('playing'))return;
+    clearLegacy();
+    const v=viewport();
+    document.documentElement.style.setProperty('--game-w',v.w+'px');
+    document.documentElement.style.setProperty('--game-h',v.h+'px');
+
+    const hr=hud.getBoundingClientRect();
+    const top=Math.max(58,Math.ceil(hr.bottom+6));
+    stage.style.setProperty('top',top+'px','important');
+
+    const availableH=Math.max(180,v.h-top-10);
+    const sideReserve=(navigator.maxTouchPoints||0)>0?250:20;
+    const availableW=Math.max(180,v.w-sideReserve);
+    const size=Math.max(160,Math.floor(Math.min(availableH,availableW)));
+    const sig=[v.w,v.h,top,size].join(':');
     if(sig===last)return;
     last=sig;
-
-    playfield.style.setProperty('--canvas-w',cw+'px');
-    playfield.style.setProperty('--canvas-h',ch+'px');
+    document.documentElement.style.setProperty('--canvas-size',size+'px');
   }
 
   function burst(){
-    last='';
-    cancelAnimationFrame(rafId);clearTimeout(timerId);
-    forceOrigin();fitV147();
-    rafId=requestAnimationFrame(()=>{last='';fitV147();requestAnimationFrame(()=>{last='';fitV147()})});
-    setTimeout(()=>{last='';fitV147()},60);
-    setTimeout(()=>{last='';fitV147()},180);
-    timerId=setTimeout(()=>{last='';fitV147()},480);
+    last='';clearTimeout(timer);cancelAnimationFrame(raf);fit();
+    raf=requestAnimationFrame(()=>{last='';fit();requestAnimationFrame(()=>{last='';fit()})});
+    setTimeout(()=>{last='';fit()},80);
+    setTimeout(()=>{last='';fit()},220);
+    timer=setTimeout(()=>{last='';fit()},520);
   }
 
-  window.fitGame=fitV147;
-  window.fitGameBurst=burst;
-  try{fitGame=fitV147;fitGameBurst=burst}catch{}
+  window.fitGame=fit;window.fitGameBurst=burst;
+  try{fitGame=fit;fitGameBurst=burst}catch{}
 
-  if('ResizeObserver' in window){
-    const ro=new ResizeObserver(()=>burst());
-    ro.observe(gameEl);ro.observe(stageEl);ro.observe(playfield);ro.observe(hudEl);
-  }
+  if('ResizeObserver' in window){const ro=new ResizeObserver(burst);ro.observe(game);ro.observe(stage);ro.observe(hud)}
   for(const ev of ['resize','pageshow','focus'])window.addEventListener(ev,burst,{passive:true});
-  window.addEventListener('orientationchange',()=>{setTimeout(burst,60);setTimeout(burst,180);setTimeout(burst,520)},{passive:true});
+  window.addEventListener('orientationchange',()=>{setTimeout(burst,80);setTimeout(burst,240);setTimeout(burst,600)},{passive:true});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')burst()});
-  if(window.visualViewport){visualViewport.addEventListener('resize',burst,{passive:true});visualViewport.addEventListener('scroll',burst,{passive:true});}
+  if(window.visualViewport){visualViewport.addEventListener('resize',burst,{passive:true});visualViewport.addEventListener('scroll',burst,{passive:true})}
   const mo=new MutationObserver(()=>{if(document.body.classList.contains('playing'))burst()});
   mo.observe(document.body,{attributes:true,attributeFilter:['class']});
-
-  const label=document.querySelector('.hud>div:first-child span');
-  if(label)label.textContent='ОЧКИ · v14.7';
+  const label=document.querySelector('.hud>div:first-child span');if(label)label.textContent='ОЧКИ · v14.8';
   burst();
-  console.info('Tank Base v14.7: cache-clean centered layout active');
+  console.info('Tank Base v14.8: square 600x600 viewport layout active');
 })();
