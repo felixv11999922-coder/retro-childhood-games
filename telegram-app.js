@@ -38,19 +38,25 @@
 
     const s=safeInsets();
     const hr=hud?.getBoundingClientRect();
-    const boardStart=Math.ceil(Math.max(s.top+50,hr?.bottom||0)+14);
+    const hudBottom=Math.max(s.top+50,hr?.bottom||0);
 
-    // v16.4: controls own a dedicated bottom lane and NEVER overlap the board.
-    // 118px fits the large iPad joystick, plus safe-area and breathing room.
+    // v16.5: pull the whole battlefield upward on iPad while keeping controls
+    // in their own bottom lane. We intentionally use only a tiny gap below HUD.
+    const boardStart=Math.ceil(Math.max(s.top+54,hudBottom+4));
     const laneHeight=126;
     const laneBottom=Math.floor(h-s.bottom-10);
     const controlsTop=Math.max(boardStart+190,laneBottom-laneHeight);
-    const boardEnd=Math.max(boardStart+180,controlsTop-14);
+    const boardEnd=Math.max(boardStart+180,controlsTop-18);
 
     const availableH=Math.max(180,boardEnd-boardStart);
     const availableW=Math.max(180,w-s.left-s.right-24);
     const size=Math.floor(Math.min(600,availableW,availableH));
-    const boardTop=Math.round(boardStart+size/2);
+
+    // Additional tablet lift: move the square up, but never above the HUD safe line.
+    const desiredLift=34;
+    const naturalTop=boardStart+size/2;
+    const minTop=hudBottom+4+size/2;
+    const boardTop=Math.max(minTop,naturalTop-desiredLift);
 
     cssPx('--tg-board-px',size);
     cssPx('--tg-board-top',boardTop);
@@ -86,7 +92,7 @@
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')burst()});
 
   const scoreLabel=document.querySelector('.hud>div:first-child span');
-  if(scoreLabel)scoreLabel.textContent='ОЧКИ · v16.4';
+  if(scoreLabel)scoreLabel.textContent='ОЧКИ · v16.5';
   burst();
-  console.info('Tank Base v16.4: dedicated iPad control lane active');
+  console.info('Tank Base v16.5: iPad battlefield shifted upward');
 })();
