@@ -1,6 +1,17 @@
 'use strict';
-// v14 compatibility layer: 26x26 micro-grid, 2x2 tank/HQ anchors, scalable terrain art, stable iPad viewport.
+// v14.4 compatibility layer: only game geometry/art overrides. Layout belongs exclusively to layout-fix.js.
 (function(){
+  // app-core registered direct resize callbacks before this file loaded. Remove those stale direct callbacks now;
+  // anonymous callbacks in app-core resolve the current fitGameBurst binding later and are safe.
+  try{
+    const staleBurst=fitGameBurst;
+    window.removeEventListener('resize',staleBurst);
+    if(window.visualViewport){
+      visualViewport.removeEventListener('resize',staleBurst);
+      visualViewport.removeEventListener('scroll',staleBurst);
+    }
+  }catch{}
+
   function microRect(c,r,wc=2,hc=2,inset=2){return {x:px(c)+inset,y:py(r)+inset,w:TILE_SIZE*wc-inset*2,h:TILE_SIZE*hc-inset*2}}
   addHQFortification=function(){
     const cells=[];
@@ -22,18 +33,6 @@
   drawBush=function(cc,rr){const x=px(cc),y=py(rr),s=TILE_SIZE;ctx.save();ctx.globalAlpha=.93;const colors=['#22562e','#2e7139','#478f4d'];for(let i=0;i<8;i++){ctx.fillStyle=colors[i%3];const d=Math.max(4,s*.34),dx=((i*7)%Math.max(1,s-d)),dy=((i*11)%Math.max(1,s-d));ctx.fillRect(x+dx,y+dy,d,d)}ctx.restore()};
   drawBase=function(){const ratio=base.hp/base.maxHp,x=base.x,y=base.y,w=base.w,h=base.h;ctx.save();ctx.fillStyle='#0008';ctx.fillRect(x+4,y+5,w,h);ctx.fillStyle='#69737f';ctx.fillRect(x-3,y-4,w+6,7);ctx.fillStyle=ratio>.66?'#d0ad4c':ratio>.33?'#bc7e43':'#a35342';ctx.fillRect(x,y,w,h);ctx.strokeStyle='#f1d993';ctx.lineWidth=1.5;ctx.strokeRect(x+1,y+1,w-2,h-2);ctx.fillStyle='#242018';ctx.fillRect(x+w*.34,y+h*.38,w*.32,h*.62);ctx.fillStyle='#111820';ctx.fillRect(x+w*.12,y+h*.34,w*.16,h*.12);ctx.fillRect(x+w*.72,y+h*.34,w*.16,h*.12);ctx.strokeStyle='#cbd4dc';ctx.beginPath();ctx.moveTo(x+w*.76,y);ctx.lineTo(x+w*.76,y-h*.28);ctx.stroke();ctx.fillStyle='#ed6a62';ctx.fillRect(x+w*.76,y-h*.28,w*.22,Math.max(3,h*.12));ctx.fillStyle='#0b0d12';ctx.fillRect(x,y-8,w,4);ctx.fillStyle=ratio>.66?'#74e0a1':ratio>.33?'#f2ca4b':'#ed6a62';ctx.fillRect(x,y-8,w*ratio,4);ctx.restore()};
   tank=function(t,col){const w=t.w,h=t.h,cx=t.x+w/2,cy=t.y+h/2;ctx.save();ctx.translate(cx,cy);ctx.rotate(t.dir==='up'?0:t.dir==='right'?Math.PI/2:t.dir==='down'?Math.PI:-Math.PI/2);const tw=Math.min(w,h),track=Math.max(4,tw*.16),bodyW=tw*.54,bodyH=tw*.66;ctx.fillStyle=col;ctx.fillRect(-tw*.42,-tw*.42,track,tw*.84);ctx.fillRect(tw*.42-track,-tw*.42,track,tw*.84);ctx.fillRect(-bodyW/2,-bodyH/2,bodyW,bodyH);ctx.fillStyle='#e7edf7';ctx.fillRect(-tw*.09,-tw*.22,tw*.18,tw*.37);ctx.fillRect(-tw*.045,-tw*.58,tw*.09,tw*.42);if(t.maxHp>1){ctx.fillStyle='#111';ctx.fillRect(-tw*.24,tw*.31,tw*.48,Math.max(2,tw*.07));ctx.fillStyle=t.hp/t.maxHp>.5?'#74e0a1':'#f2ca4b';ctx.fillRect(-tw*.24,tw*.31,tw*.48*(t.hp/t.maxHp),Math.max(2,tw*.07))}ctx.restore()};
-  const oldFit=fitGame;
-  fitGame=function(){
-    const game=$('game');if(!game||game.classList.contains('hidden'))return;
-    const doc=document.documentElement,vw=Math.max(window.innerWidth||0,doc.clientWidth||0,320),vh=Math.max(window.innerHeight||0,doc.clientHeight||0,320);
-    game.style.left='0px';game.style.top='0px';game.style.width=vw+'px';game.style.height=vh+'px';
-    const hud=game.querySelector('.hud'),stage=game.querySelector('.stage');if(!hud||!stage)return oldFit();
-    const cs=getComputedStyle(game),pyv=parseFloat(cs.paddingTop||0)+parseFloat(cs.paddingBottom||0),availableH=Math.max(140,vh-hud.getBoundingClientRect().height-pyv-7),availableW=Math.max(200,vw-16);
-    stage.style.height=availableH+'px';stage.style.width='100%';stage.style.minWidth='0';
-    const scale=Math.min(availableW/W,availableH/H);c.style.position='absolute';c.style.left='50%';c.style.top='50%';c.style.transform='translate(-50%,-50%)';c.style.width=Math.floor(W*scale)+'px';c.style.height=Math.floor(H*scale)+'px';
-  };
-  fitGameBurst=function(){clearTimeout(refitTimer);fitGame();requestAnimationFrame(fitGame);setTimeout(fitGame,70);setTimeout(fitGame,190);refitTimer=setTimeout(fitGame,380)};
-  const label=document.querySelector('.hud>div:first-child span');if(label)label.textContent='ОЧКИ · v14';
-  addEventListener('resize',fitGameBurst);addEventListener('orientationchange',()=>setTimeout(fitGameBurst,120));addEventListener('pageshow',fitGameBurst);addEventListener('focus',fitGameBurst);if(window.visualViewport){visualViewport.addEventListener('resize',fitGameBurst);visualViewport.addEventListener('scroll',fitGameBurst)}
-  console.info('Tank Base v14: 26x26 micro-grid active', {COLS,ROWS,TILE_SIZE,HQ:[HQ_COL,HQ_ROW],spawns:SPAWN_POINTS});
+
+  console.info('Tank Base v14.4: compatibility layer active; layout ownership removed');
 })();
