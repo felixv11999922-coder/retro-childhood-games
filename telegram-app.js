@@ -5,6 +5,8 @@
   const game=document.getElementById('game');
   const canvas=document.getElementById('c');
   const hud=game?.querySelector('.hud');
+  const touchpadWrap=game?.querySelector('.touchpadWrap');
+  const fire=game?.querySelector('.fire');
   if(!tg){root.classList.add('browser-mode');return;}
 
   root.classList.add('telegram-mode');
@@ -50,16 +52,22 @@
     const s=safeInsets();
     const hr=hud?.getBoundingClientRect();
     const hudBottom=Math.max(s.top+50,hr?.bottom||0);
-    const top=Math.ceil(hudBottom+12);
+    const top=Math.ceil(hudBottom+14);
 
-    // Leave the bottom controls their own lane. The board itself is calculated from
-    // the REAL WebView dimensions, not Telegram viewportStableHeight.
-    const controlLane=132+s.bottom;
-    const bottom=Math.max(top+180,h-controlLane);
-    const availableH=Math.max(180,bottom-top);
-    const availableW=Math.max(180,w-s.left-s.right-28);
+    // v16.3: measure the real controls, then end the board ABOVE them.
+    // This works even when Telegram changes the iPad WebView height or button sizes.
+    const tr=touchpadWrap?.getBoundingClientRect();
+    const fr=fire?.getBoundingClientRect();
+    const tops=[];
+    if(tr&&Number.isFinite(tr.top)&&tr.top>top)tops.push(tr.top);
+    if(fr&&Number.isFinite(fr.top)&&fr.top>top)tops.push(fr.top);
+    const measuredControlsTop=tops.length?Math.min(...tops):h-(146+s.bottom);
+    const boardBottom=Math.floor(Math.min(h-s.bottom-12,measuredControlsTop-16));
+
+    const availableH=Math.max(180,boardBottom-top);
+    const availableW=Math.max(180,w-s.left-s.right-24);
     const size=Math.floor(Math.min(600,availableW,availableH));
-    const boardTop=Math.round(top+availableH/2);
+    const boardTop=Math.round(top+size/2);
 
     cssPx('--tg-board-px',size);
     cssPx('--tg-board-top',boardTop);
@@ -101,10 +109,9 @@
   window.addEventListener('orientationchange',()=>setTimeout(burst,180),{passive:true});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')burst()});
 
-  // Remove stale version text left by older compatibility scripts.
   const scoreLabel=document.querySelector('.hud>div:first-child span');
-  if(scoreLabel)scoreLabel.textContent='ОЧКИ · v16.2';
+  if(scoreLabel)scoreLabel.textContent='ОЧКИ · v16.3';
 
   burst();
-  console.info('Tank Base v16.2: actual WebView tablet sizing active');
+  console.info('Tank Base v16.3: measured control lane + tablet board separation active');
 })();
