@@ -2,11 +2,32 @@
 html,body{width:100%;max-width:100%;overflow-x:hidden}
 html{height:100%}
 body.playing{overflow:hidden!important;overscroll-behavior:none!important;touch-action:manipulation!important}
-body.playing #game{position:fixed!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;transform:none!important;box-sizing:border-box!important;padding:max(6px,var(--sat)) max(8px,var(--sar)) max(6px,var(--sab)) max(8px,var(--sal))!important;overflow:hidden!important}
+body.playing #game{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;transform:none!important;box-sizing:border-box!important;padding:max(6px,var(--sat)) max(8px,var(--sar)) max(6px,var(--sab)) max(8px,var(--sal))!important;overflow:hidden!important}
 body.playing #game .hud{position:relative!important;width:100%!important;max-width:100%!important;min-width:0!important;flex:0 0 auto!important;z-index:40!important}
-body.playing #game .stage{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;min-width:0!important;height:auto!important;min-height:0!important;flex:1 1 0!important;margin:0!important;padding:0!important;overflow:hidden!important;contain:layout paint!important;transform:none!important}
-body.playing #game canvas{position:absolute!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-50%)!important;transform-origin:center center!important;max-width:none!important;max-height:none!important;margin:0!important;display:block!important}
-body.playing #game .controls{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden!important;z-index:50!important;pointer-events:none!important}
-body.playing #game .touchpadWrap{position:absolute!important;left:max(12px,var(--sal))!important;right:auto!important;bottom:max(14px,var(--sab))!important;z-index:60!important;pointer-events:auto!important;transform:none!important}
-body.playing #game .fire{position:absolute!important;left:auto!important;right:max(16px,var(--sar))!important;bottom:max(18px,var(--sab))!important;z-index:60!important;pointer-events:auto!important}
-@media (orientation:landscape) and (pointer:coarse){body.playing #game .touchpad{width:128px!important;height:128px!important}body.playing #game .fire{width:86px!important;height:86px!important}}
+
+body.playing #game .stageV143{position:relative!important;display:grid!important;grid-template-columns:150px minmax(0,1fr) 112px!important;grid-template-rows:minmax(0,1fr)!important;width:100%!important;max-width:100%!important;min-width:0!important;height:auto!important;min-height:0!important;flex:1 1 0!important;margin:0!important;padding:0!important;overflow:hidden!important;contain:layout paint!important;transform:none!important;align-items:stretch!important}
+
+body.playing #game .controlRail{position:relative!important;min-width:0!important;min-height:0!important;display:flex!important;align-items:flex-end!important;justify-content:center!important;overflow:visible!important;z-index:30!important;pointer-events:none!important}
+body.playing #game .controlRailLeft{padding:0 8px max(10px,var(--sab)) 4px!important}
+body.playing #game .controlRailRight{padding:0 4px max(14px,var(--sab)) 8px!important}
+
+body.playing #game .playfield{position:relative!important;min-width:0!important;min-height:0!important;width:100%!important;height:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;z-index:10!important}
+
+body.playing #game .playfield canvas{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important;transform-origin:center center!important;max-width:none!important;max-height:none!important;margin:0!important;display:block!important;flex:0 0 auto!important}
+
+body.playing #game .touchpadWrap{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;z-index:60!important;pointer-events:auto!important;transform:none!important;margin:0!important}
+body.playing #game .fire{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;z-index:60!important;pointer-events:auto!important;margin:0!important;flex:0 0 auto!important}
+
+body.playing #game .toast{position:absolute!important;left:50%!important;top:12px!important;transform:translateX(-50%)!important;z-index:80!important}
+
+@media (orientation:landscape) and (pointer:coarse){
+  body.playing #game .stageV143{grid-template-columns:142px minmax(0,1fr) 104px!important}
+  body.playing #game .touchpad{width:124px!important;height:124px!important}
+  body.playing #game .fire{width:84px!important;height:84px!important}
+}
+
+@media (max-width:900px) and (pointer:coarse){
+  body.playing #game .stageV143{grid-template-columns:126px minmax(0,1fr) 92px!important}
+  body.playing #game .touchpad{width:112px!important;height:112px!important}
+  body.playing #game .fire{width:76px!important;height:76px!important}
+}
