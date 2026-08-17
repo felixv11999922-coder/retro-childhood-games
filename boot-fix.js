@@ -42,6 +42,6 @@
   play.addEventListener('click',robustStart,true);
   window.addEventListener('error',e=>{if(document.body.classList.contains('playing'))showBootError(e.error||new Error(e.message||'JavaScript error'))});
   window.addEventListener('unhandledrejection',e=>{if(document.body.classList.contains('playing'))showBootError(e.reason||new Error('Unhandled promise rejection'))});
-  const label=document.querySelector('.hud>div:first-child span');if(label)label.textContent='ОЧКИ · v15.0';
-  console.info('Tank Base v15.0: direct viewport boot active');
+  const label=document.querySelector('.hud>div:first-child span');if(label)label.textContent='ОЧКИ · v15.1';
+  console.info('Tank Base v15.1: direct viewport boot active');
 })();
