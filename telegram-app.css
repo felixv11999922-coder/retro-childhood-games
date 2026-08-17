@@ -1,11 +1,13 @@
-:root{--tg-vh:100dvh;--tg-stable-vh:100dvh;--tg-safe-top:0px;--tg-safe-right:0px;--tg-safe-bottom:0px;--tg-safe-left:0px;--tg-board-px:0px;--tg-board-top:50%;--tg-controls-top:auto}
+:root{--tg-vh:100dvh;--tg-stable-vh:100dvh;--tg-safe-top:0px;--tg-safe-right:0px;--tg-safe-bottom:0px;--tg-safe-left:0px;--tg-board-px:0px;--tg-board-y:0px;--tg-controls-top:auto}
 html.telegram-mode,html.telegram-mode body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
 html.telegram-mode body.playing #game{height:100dvh!important;min-height:100dvh!important;inset:0!important;overflow:hidden!important}
 html.telegram-mode body.playing #game .hud{left:max(8px,var(--tg-safe-left))!important;right:max(8px,var(--tg-safe-right))!important;top:max(6px,var(--tg-safe-top))!important}
 html.telegram-mode body.playing #c{--tg-board:min(600px,calc(var(--tg-stable-vh) - 92px),calc(100vw - 24px));width:var(--tg-board)!important;height:var(--tg-board)!important;left:50%!important;top:calc(50% + 28px)!important;transform:translate(-50%,-50%) scale(var(--board-zoom,1))!important;transform-origin:center!important}
-html.telegram-mode.telegram-tablet body.playing #c{width:var(--tg-board-px)!important;height:var(--tg-board-px)!important;top:var(--tg-board-top)!important;left:50%!important}
+/* Tablet mode uses TOP EDGE positioning, not centre positioning. This makes the
+   lower edge mathematically deterministic and keeps it above the control lane. */
+html.telegram-mode.telegram-tablet body.playing #c{width:var(--tg-board-px)!important;height:var(--tg-board-px)!important;top:var(--tg-board-y)!important;left:50%!important;transform:translateX(-50%) scale(var(--board-zoom,1))!important;transform-origin:top center!important}
 html.telegram-mode body.playing #game .touchpadWrap{left:max(14px,var(--tg-safe-left))!important;bottom:max(16px,var(--tg-safe-bottom))!important}
 html.telegram-mode body.playing #game .fire{right:max(18px,var(--tg-safe-right))!important;bottom:max(20px,var(--tg-safe-bottom))!important}
-html.telegram-mode.telegram-tablet body.playing #game .touchpadWrap{top:var(--tg-controls-top)!important;bottom:auto!important}
-html.telegram-mode.telegram-tablet body.playing #game .fire{top:var(--tg-controls-top)!important;bottom:auto!important}
+html.telegram-mode.telegram-tablet body.playing #game .touchpadWrap{top:var(--tg-controls-top)!important;bottom:auto!important;z-index:20!important}
+html.telegram-mode.telegram-tablet body.playing #game .fire{top:var(--tg-controls-top)!important;bottom:auto!important;z-index:20!important}
 @media (max-width:700px){html.telegram-mode:not(.telegram-tablet) body.playing #c{--tg-board:min(calc(100vw - 20px),calc(var(--tg-stable-vh) - 112px))}}
