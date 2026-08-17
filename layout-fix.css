@@ -2,6 +2,10 @@
 html,body{margin:0!important;width:100%!important;max-width:100%!important;min-width:0!important;overflow-x:hidden!important;background:#0b0d12!important}
 html{height:100%!important}
 body{min-height:100%!important}
+.app,#menu,.hero,.grid,.card,.board{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+.grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.hero,.card,.board{overflow:hidden!important}
+.hero p,.card p,.card h3{overflow-wrap:anywhere!important;word-break:normal!important}
 body.playing{overflow:hidden!important;overscroll-behavior:none!important;touch-action:none!important}
 body.playing .app{display:none!important}
 body.playing #game{display:block!important;position:fixed!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-width:100vw!important;max-height:100dvh!important;margin:0!important;padding:0!important;box-sizing:border-box!important;transform:none!important;overflow:hidden!important;background:#0b0d12!important;z-index:9999!important}
@@ -15,4 +19,5 @@ body.playing #game .touchpadWrap{position:absolute!important;left:max(14px,var(-
 body.playing #game .fire{position:absolute!important;left:auto!important;right:max(18px,var(--sar))!important;top:auto!important;bottom:max(20px,var(--sab))!important;margin:0!important;transform:none!important;pointer-events:auto!important;z-index:70!important}
 body.playing #game .toast{position:absolute!important;left:50%!important;top:10px!important;transform:translateX(-50%)!important;z-index:90!important}
 @media (orientation:landscape) and (pointer:coarse){body.playing #game .touchpad{width:116px!important;height:116px!important}body.playing #game .stick{width:46px!important;height:46px!important;margin:-23px 0 0 -23px!important}body.playing #game .fire{width:82px!important;height:82px!important;font-size:18px!important}}
+@media (max-width:900px){.grid{grid-template-columns:1fr!important}}
 @media (max-width:900px) and (pointer:coarse){body.playing #game .touchpad{width:98px!important;height:98px!important}body.playing #game .stick{width:42px!important;height:42px!important;margin:-21px 0 0 -21px!important}body.playing #game .fire{width:70px!important;height:70px!important;font-size:16px!important}body.playing #game .hud{grid-template-columns:repeat(6,minmax(0,1fr)) auto!important}body.playing #game .soundBtn{display:none!important}}
