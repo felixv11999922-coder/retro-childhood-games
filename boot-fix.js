@@ -48,6 +48,6 @@
   window.addEventListener('unhandledrejection',e=>{if(document.body.classList.contains('playing'))showBootError(e.reason||new Error('Unhandled promise rejection'))});
 
   const label=document.querySelector('.hud>div:first-child span');
-  if(label)label.textContent='ОЧКИ · v14.7';
-  console.info('Tank Base v14.7: robust boot controller active');
+  if(label)label.textContent='ОЧКИ · v14.8';
+  console.info('Tank Base v14.8: robust boot controller active');
 })();
