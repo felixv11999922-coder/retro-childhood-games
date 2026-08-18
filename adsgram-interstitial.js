@@ -1,6 +1,6 @@
 'use strict';
 (function(){
-  const BLOCK_ID='int-43324';
+  const BLOCK_ID='int-43390';
   const COOLDOWN_MS=90000;
   const LAST_KEY='retro_adsgram_last_interstitial';
   let controller=null;
@@ -27,7 +27,7 @@
     const label=(primary.textContent||'').toLowerCase();
     if(!label.includes('продолж')) return false;
     const lvl=levelNumber();
-    if(lvl>0 && lvl%2===0) return false; // ads after levels 1,3,5... only
+    if(lvl>0 && lvl%2===0) return false;
     const last=Number(localStorage.getItem(LAST_KEY)||0);
     return Date.now()-last>=COOLDOWN_MS;
   }
