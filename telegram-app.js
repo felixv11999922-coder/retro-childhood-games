@@ -42,8 +42,6 @@
     const s=safeInsets();
     const hr=hud?.getBoundingClientRect();
     const hudBottom=Math.max(s.top+50,hr?.bottom||0);
-
-    // Dedicated bottom lane. Make it deliberately taller than both controls.
     const boardY=Math.ceil(hudBottom+6);
     const controlLaneHeight=150;
     const controlsTop=Math.max(boardY+190,Math.floor(h-s.bottom-controlLaneHeight));
@@ -74,7 +72,6 @@
     let overlap=cr.bottom-allowedBottom;
     if(overlap<=0)return;
 
-    // First move the board upward by the exact rendered overlap.
     const currentY=parseFloat(getComputedStyle(root).getPropertyValue('--tg-board-y'))||0;
     const minY=(hr?.bottom||0)+4;
     const movable=Math.max(0,currentY-minY);
@@ -84,8 +81,6 @@
       overlap-=shift;
     }
 
-    // If there still is overlap, shrink the board. This is the hard guarantee:
-    // rendered canvas.bottom must stay above the rendered controls.top.
     if(overlap>0){
       const currentSize=parseFloat(getComputedStyle(root).getPropertyValue('--tg-board-px'))||cr.width;
       const newSize=Math.max(170,currentSize-overlap-4);
@@ -125,7 +120,7 @@
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')burst()});
 
   const scoreLabel=document.querySelector('.hud>div:first-child span');
-  if(scoreLabel)scoreLabel.textContent='ОЧКИ · v16.7';
+  if(scoreLabel)scoreLabel.textContent='ОЧКИ';
   burst();
-  console.info('Tank Base v16.7: rendered overlap guard active');
+  console.info('Tank Base: rendered overlap guard active');
 })();
