@@ -29,43 +29,25 @@
       msg.includes('audio context was not allowed');
   }
 
-  function robustStart(ev){
-    if(ev){ev.preventDefault();ev.stopImmediatePropagation();}
+  // Preflight only. Do not prevent/stop the click: app-core owns the actual
+  // game start, while Telegram layout and analytics also need the same click.
+  function preflight(){
     removeBootError();
-    try{
-      const se=document.scrollingElement||document.documentElement;
-      if(se){se.scrollLeft=0;se.scrollTop=0;}
-      window.scrollTo(0,0);
-      document.documentElement.style.overflow='hidden';
-      document.body.classList.add('playing');
-      const game=document.getElementById('game');
-      const over=document.getElementById('over');
-      const pauseModal=document.getElementById('pauseModal');
-      if(!game)throw new Error('Не найден #game');
-      game.classList.remove('hidden');
-      if(over)over.classList.add('hidden');
-      if(pauseModal)pauseModal.classList.add('hidden');
-      if(typeof audio==='function')audio();
-      if(typeof resetCampaign!=='function')throw new Error('resetCampaign не загружен');
-      resetCampaign();
-    }catch(err){
-      document.body.classList.remove('playing');
-      const game=document.getElementById('game');if(game)game.classList.add('hidden');
-      document.documentElement.style.overflow='';showBootError(err);
+    if(typeof play.onclick!=='function'){
+      showBootError(new Error('Игровой модуль не загрузился. Полностью закройте Mini App и откройте снова.'));
     }
   }
-
-  play.addEventListener('click',robustStart,true);
+  play.addEventListener('click',preflight,true);
 
   window.addEventListener('error',e=>{
-    if(!document.body.classList.contains('playing'))return;
     const err=e.error||new Error(e.message||'JavaScript error');
     if(isBenignPlatformRejection(err)){
       console.info('Ignored benign Telegram/iOS media restriction:',err);
       removeBootError();
       return;
     }
-    console.error('Runtime error while game is open:',err);
+    if(document.body.classList.contains('playing'))showBootError(err);
+    else console.error('Runtime error:',err);
   });
 
   window.addEventListener('unhandledrejection',e=>{
@@ -76,12 +58,8 @@
       removeBootError();
       return;
     }
-    // Third-party SDKs (including ad/video SDKs) may reject promises after their
-    // overlay closes. Do not mislabel these as a game-launch failure.
     console.warn('Unhandled promise rejection while game is open:',reason);
   });
 
-  const label=document.querySelector('.hud>div:first-child span');
-  if(label)label.textContent='ОЧКИ · v16.8';
-  console.info('Tank Base v16.8: Telegram-safe boot active');
+  console.info('Tank Base: Telegram-safe boot preflight active');
 })();
