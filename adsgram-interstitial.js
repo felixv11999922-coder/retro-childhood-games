@@ -6,9 +6,19 @@
   let controller=null;
   let bypass=false;
 
+  function notify(msg){
+    const el=document.getElementById('toast');
+    if(!el)return;
+    el.textContent=msg;
+    el.classList.add('show');
+    clearTimeout(notify.t);
+    notify.t=setTimeout(()=>el.classList.remove('show'),1800);
+  }
+
   function init(){
     try{
       if(window.Adsgram) controller=window.Adsgram.init({blockId:BLOCK_ID});
+      else console.warn('AdsGram SDK is not loaded');
     }catch(e){
       console.warn('AdsGram init failed',e);
     }
@@ -20,13 +30,19 @@
     return Number.isFinite(n)?n:0;
   }
 
-  function eligible(){
+  function isLevelTransition(){
     const over=document.getElementById('over');
     const primary=document.getElementById('primaryAction');
+    const badge=(document.getElementById('resultBadge')?.textContent||'').trim().toLowerCase();
+    const label=(primary?.textContent||'').trim().toLowerCase();
     if(!over||!primary||over.classList.contains('hidden')) return false;
-    const label=(primary.textContent||'').toLowerCase();
-    if(!label.includes('продолж')) return false;
+    return badge.includes('уровень пройден') || label.includes('следующий уровень');
+  }
+
+  function eligible(){
+    if(!isLevelTransition()) return false;
     const lvl=levelNumber();
+    // Interstitial only after odd-numbered levels: 1, 3, 5... so it never appears after every action.
     if(lvl>0 && lvl%2===0) return false;
     const last=Number(localStorage.getItem(LAST_KEY)||0);
     return Date.now()-last>=COOLDOWN_MS;
@@ -34,12 +50,19 @@
 
   async function showInterstitial(){
     if(!controller) init();
-    if(!controller) return;
+    if(!controller){
+      notify('Реклама сейчас недоступна — продолжаем');
+      return false;
+    }
     try{
-      await controller.show();
+      const result=await controller.show();
       localStorage.setItem(LAST_KEY,String(Date.now()));
+      console.info('AdsGram interstitial shown',result);
+      return true;
     }catch(e){
       console.info('AdsGram interstitial unavailable',e);
+      notify('Реклама сейчас недоступна — продолжаем');
+      return false;
     }
   }
 
