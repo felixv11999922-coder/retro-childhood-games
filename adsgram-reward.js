@@ -56,7 +56,9 @@
       if(title) title.textContent='Бонусная попытка получена';
       if(mini) mini.textContent=`Дополнительная попытка за рекламу начислена. Продолжений: ${retriesRemaining}.`;
       notify('✅ +1 попытка начислена');
-      try{sfx('power')}catch{}
+      // Do not auto-resume WebAudio here. On iOS Telegram the ad overlay may
+      // return without a fresh media user gesture and AudioContext.resume()
+      // can reject with NotAllowedError even though the reward succeeded.
     }catch(e){
       console.error('Reward grant failed',e);
       notify('Не удалось начислить попытку');
