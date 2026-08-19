@@ -1,11 +1,15 @@
 'use strict';
 (function(){
+  if(window.__RGP_ANALYTICS_INIT__)return;
+  window.__RGP_ANALYTICS_INIT__=true;
+
   const SUPABASE_URL='https://kexfusnwcxqbshpwlshx.supabase.co';
   const API_KEY='sb_publishable_dvhExwtVNoB6V6z9QBM2qg_EPOO9sSB';
   const ENDPOINT=SUPABASE_URL+'/rest/v1/analytics_events';
   const SESSION_ID=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2));
   let userKeyPromise=null;
   let lastResultKey='';
+  let wasPlaying=false;
 
   function levelNumber(){
     const text=document.getElementById('level')?.textContent||'';
@@ -44,11 +48,12 @@
 
   async function track(eventName,extra={}){
     try{
+      const hasLevel=Object.prototype.hasOwnProperty.call(extra,'level');
       const payload={
         event_name:String(eventName).slice(0,64),
         user_key:await userKey(),
         game_id:'tanks',
-        level:extra.level??levelNumber(),
+        level:hasLevel?extra.level:levelNumber(),
         source:sourceName(),
         session_id:SESSION_ID,
         metadata:{
@@ -80,16 +85,33 @@
     else if(badge.includes('поражение')) track('defeat',{level:lvl,metadata:{title}});
   }
 
+  function inspectPlaying(){
+    const playing=document.body.classList.contains('playing') && !document.getElementById('game')?.classList.contains('hidden');
+    if(playing&&!wasPlaying)track('game_start',{level:levelNumber()||1});
+    wasPlaying=playing;
+  }
+
   function init(){
     track('miniapp_open',{level:null});
-    document.getElementById('play')?.addEventListener('click',()=>track('game_start',{level:1}),true);
     document.getElementById('share')?.addEventListener('click',()=>track('share_click',{level:null}),true);
     document.addEventListener('click',ev=>{
       if(ev.target?.closest?.('#rewardTry')) track('reward_click',{level:levelNumber()});
     },true);
+
     const over=document.getElementById('over');
     if(over)new MutationObserver(()=>setTimeout(inspectResult,0)).observe(over,{attributes:true,subtree:true,childList:true,characterData:true});
+
+    // Telegram can make the Play button interactive before DOMContentLoaded.
+    // Count the real state transition into gameplay instead of relying on the click itself.
+    wasPlaying=false;
+    const bodyObserver=new MutationObserver(()=>setTimeout(inspectPlaying,0));
+    bodyObserver.observe(document.body,{attributes:true,attributeFilter:['class']});
+    const game=document.getElementById('game');
+    if(game)new MutationObserver(()=>setTimeout(inspectPlaying,0)).observe(game,{attributes:true,attributeFilter:['class']});
+    inspectPlaying();
   }
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  // This script is loaded at the end of <body>, so all tracked elements already exist.
+  // Initializing immediately avoids missing a very fast tap on “НАЧАТЬ ИГРУ”.
+  init();
 })();
