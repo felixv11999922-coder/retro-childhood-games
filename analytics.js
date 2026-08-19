@@ -10,6 +10,8 @@
   let userKeyPromise=null;
   let lastResultKey='';
   let wasPlaying=false;
+  let lastAttemptKey='';
+  let lastAttemptAt=0;
   const startedLevels=new Set();
 
   function levelNumber(){
@@ -90,6 +92,20 @@
     return document.body.classList.contains('playing') && !document.getElementById('game')?.classList.contains('hidden');
   }
 
+  function trackAttempt(){
+    if(!isPlaying())return;
+    const over=document.getElementById('over');
+    if(over&&!over.classList.contains('hidden'))return;
+    const lvl=levelNumber();
+    if(!lvl)return;
+    const now=Date.now();
+    const key=SESSION_ID+':'+lvl;
+    if(key===lastAttemptKey && now-lastAttemptAt<1000)return;
+    lastAttemptKey=key;
+    lastAttemptAt=now;
+    track('level_attempt',{level:lvl});
+  }
+
   function inspectLevelStart(){
     if(!isPlaying())return;
     const lvl=levelNumber();
@@ -103,6 +119,7 @@
     if(playing&&!wasPlaying){
       const lvl=levelNumber()||1;
       track('game_start',{level:lvl});
+      trackAttempt();
       inspectLevelStart();
     }
     wasPlaying=playing;
@@ -113,6 +130,7 @@
     document.getElementById('share')?.addEventListener('click',()=>track('share_click',{level:null}),true);
     document.addEventListener('click',ev=>{
       if(ev.target?.closest?.('#rewardTry')) track('reward_click',{level:levelNumber()});
+      if(ev.target?.closest?.('#primaryAction')) setTimeout(trackAttempt,160);
     },true);
 
     const over=document.getElementById('over');
