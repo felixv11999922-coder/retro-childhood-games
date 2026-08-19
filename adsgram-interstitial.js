@@ -42,7 +42,6 @@
   function eligible(){
     if(!isLevelTransition()) return false;
     const lvl=levelNumber();
-    // Interstitial only after odd-numbered levels: 1, 3, 5... so it never appears after every action.
     if(lvl>0 && lvl%2===0) return false;
     const last=Number(localStorage.getItem(LAST_KEY)||0);
     return Date.now()-last>=COOLDOWN_MS;
@@ -57,6 +56,7 @@
     try{
       const result=await controller.show();
       localStorage.setItem(LAST_KEY,String(Date.now()));
+      window.rgpTrack?.('interstitial_complete');
       console.info('AdsGram interstitial shown',result);
       return true;
     }catch(e){
