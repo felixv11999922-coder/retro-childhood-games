@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
+<meta name="theme-color" content="#0b0d12">
+<title>Retro Games Play — private analytics</title>
+<style>
+:root{color-scheme:dark;--bg:#090b10;--panel:#151923;--line:#2a3140;--text:#f6f7fb;--muted:#939bad;--yellow:#ffd247;--green:#69e5aa;--red:#ff7676}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#171b28 0,#090b10 42%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);min-height:100vh}.wrap{max-width:1040px;margin:0 auto;padding:28px 18px 50px}.eyebrow{letter-spacing:.22em;font-size:12px;font-weight:900;color:var(--yellow)}h1{font-size:clamp(28px,5vw,48px);margin:8px 0 8px}.muted{color:var(--muted)}.login,.panel{background:rgba(21,25,35,.96);border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 20px 70px #0006}.login{max-width:520px;margin:12vh auto 0}.row{display:flex;gap:10px;flex-wrap:wrap}input,button,select{font:inherit;border-radius:13px;border:1px solid var(--line);padding:13px 15px}input{width:100%;background:#0d1118;color:var(--text);margin:12px 0}button,select{background:#202737;color:var(--text);font-weight:800}button.primary{background:var(--yellow);color:#171717;border-color:transparent;cursor:pointer}.error{color:var(--red);min-height:22px;margin-top:10px}.hidden{display:none!important}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:20px}.filters{display:flex;gap:8px;flex-wrap:wrap}.filters button.active{background:var(--yellow);color:#111}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.metric{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:17px}.metric span{display:block;color:var(--muted);font-size:13px;margin-bottom:8px}.metric strong{font-size:30px}.section{margin-top:18px}.panel h2{margin-top:0}.funnel{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.step{padding:16px;background:#10141d;border-radius:15px;border:1px solid var(--line)}.step strong{font-size:26px;display:block}.step span{color:var(--muted);font-size:13px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--line);font-size:14px}th{color:var(--muted)}.lock{font-size:42px;margin-bottom:10px}@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.funnel{grid-template-columns:1fr}.top{display:block}.filters{margin-top:15px}}@media(max-width:420px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section id="login" class="login">
+    <div class="lock">🔐</div>
+    <div class="eyebrow">RETRO GAMES PLAY</div>
+    <h1>Закрытая статистика</h1>
+    <p class="muted">Страница не связана с пользовательским меню. Данные выдаются только после проверки административного ключа.</p>
+    <input id="password" type="password" autocomplete="current-password" placeholder="Административный ключ">
+    <button id="loginBtn" class="primary">Открыть статистику</button>
+    <div id="loginError" class="error"></div>
+  </section>
+
+  <section id="dashboard" class="hidden">
+    <div class="top">
+      <div><div class="eyebrow">RETRO GAMES PLAY · ADMIN</div><h1>Статистика Mini App</h1><div id="updated" class="muted"></div></div>
+      <div class="filters"><button data-range="today">Сегодня</button><button data-range="7d" class="active">7 дней</button><button data-range="30d">30 дней</button><button data-range="all">Всё время</button><button id="logout">Закрыть</button></div>
+    </div>
+
+    <div class="grid">
+      <div class="metric"><span>Уникальные посетители</span><strong id="uniqueVisitors">0</strong></div>
+      <div class="metric"><span>Открытия Mini App</span><strong id="opens">0</strong></div>
+      <div class="metric"><span>Уникальные игроки</span><strong id="uniquePlayers">0</strong></div>
+      <div class="metric"><span>Запуски игры</span><strong id="starts">0</strong></div>
+      <div class="metric"><span>Пройдено уровней</span><strong id="levels">0</strong></div>
+      <div class="metric"><span>Макс. пройденный уровень</span><strong id="maxLevel">0</strong></div>
+      <div class="metric"><span>Reward досмотрено</span><strong id="rewards">0</strong></div>
+      <div class="metric"><span>Interstitial досмотрено</span><strong id="interstitials">0</strong></div>
+    </div>
+
+    <div class="panel section">
+      <h2>Воронка</h2>
+      <div class="funnel">
+        <div class="step"><strong id="fOpen">0</strong><span>уникальных посетителей Mini App</span></div>
+        <div class="step"><strong id="fPlay">0</strong><span>уникальных игроков</span></div>
+        <div class="step"><strong id="fRate">0%</strong><span>из посетителей начали игру</span></div>
+      </div>
+    </div>
+
+    <div class="panel section">
+      <h2>Дополнительно</h2>
+      <div class="grid">
+        <div class="metric"><span>Поражения</span><strong id="defeats">0</strong></div>
+        <div class="metric"><span>Нажатия Reward</span><strong id="rewardClicks">0</strong></div>
+        <div class="metric"><span>Поделиться</span><strong id="shares">0</strong></div>
+        <div class="metric"><span>Всего уникальных ID</span><strong id="allUsers">0</strong></div>
+      </div>
+    </div>
+
+    <div class="panel section">
+      <h2>По дням</h2>
+      <div style="overflow:auto"><table><thead><tr><th>Дата</th><th>Открытия</th><th>Запуски</th><th>Уровни</th><th>Reward</th></tr></thead><tbody id="daily"></tbody></table></div>
+    </div>
+  </section>
+</div>
+<script>
+'use strict';
+const ENDPOINT='https://kexfusnwcxqbshpwlshx.supabase.co/functions/v1/retro-admin-stats';
+let password=sessionStorage.getItem('rgp_admin_key')||'';
+let range='7d';
+const $=id=>document.getElementById(id);
+const num=v=>Number(v||0).toLocaleString('ru-RU');
+
+async function load(){
+  $('loginError').textContent='';
+  try{
+    const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password,range}),cache:'no-store'});
+    if(!r.ok)throw new Error(r.status===404?'Неверный ключ':'Не удалось загрузить данные');
+    const d=await r.json(),t=d.totals||{};
+    sessionStorage.setItem('rgp_admin_key',password);
+    $('login').classList.add('hidden');$('dashboard').classList.remove('hidden');
+    $('uniqueVisitors').textContent=num(t.unique_visitors);$('opens').textContent=num(t.miniapp_opens);$('uniquePlayers').textContent=num(t.unique_players);$('starts').textContent=num(t.game_starts);
+    $('levels').textContent=num(t.level_completions);$('maxLevel').textContent=num(t.max_level_completed);$('rewards').textContent=num(t.reward_completed);$('interstitials').textContent=num(t.interstitial_completed);
+    $('defeats').textContent=num(t.defeats);$('rewardClicks').textContent=num(t.reward_clicks);$('shares').textContent=num(t.shares);$('allUsers').textContent=num(t.unique_users);
+    $('fOpen').textContent=num(t.unique_visitors);$('fPlay').textContent=num(t.unique_players);$('fRate').textContent=(t.unique_visitors?Math.round(t.unique_players/t.unique_visitors*100):0)+'%';
+    $('updated').textContent='Обновлено: '+new Date(d.generated_at).toLocaleString('ru-RU');
+    $('daily').innerHTML=(d.daily||[]).map(x=>`<tr><td>${x.date}</td><td>${num(x.opens)}</td><td>${num(x.starts)}</td><td>${num(x.levels)}</td><td>${num(x.rewards)}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">Данных пока нет</td></tr>';
+  }catch(e){
+    $('dashboard').classList.add('hidden');$('login').classList.remove('hidden');$('loginError').textContent=e.message||'Ошибка доступа';sessionStorage.removeItem('rgp_admin_key');
+  }
+}
+$('loginBtn').onclick=()=>{password=$('password').value.trim();if(password)load()};
+$('password').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click()});
+document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{range=b.dataset.range;document.querySelectorAll('[data-range]').forEach(x=>x.classList.toggle('active',x===b));load()});
+$('logout').onclick=()=>{sessionStorage.removeItem('rgp_admin_key');password='';location.reload()};
+if(password)load();
+</script>
+</body>
+</html>
