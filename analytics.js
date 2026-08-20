@@ -7,6 +7,7 @@
   const API_KEY='sb_publishable_dvhExwtVNoB6V6z9QBM2qg_EPOO9sSB';
   const ENDPOINT=SUPABASE_URL+'/rest/v1/analytics_events';
   const SESSION_ID=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2));
+  const BALANCE_VERSION='rebalance_1';
   let userKeyPromise=null;
   let lastResultKey='';
   let wasPlaying=false;
@@ -20,11 +21,58 @@
     return Number.isFinite(n)?n:null;
   }
 
-  function sourceName(){
+  function cleanSource(value){
+    const s=String(value||'').trim().replace(/[^a-zA-Z0-9_.-]/g,'_').slice(0,120);
+    return s||null;
+  }
+
+  function tgWebAppStartParam(){
     try{
       const tg=window.Telegram?.WebApp;
-      return tg?.initDataUnsafe?.start_param || new URLSearchParams(location.search).get('startapp') || 'telegram';
-    }catch{return 'telegram'}
+      const qs=new URLSearchParams(location.search);
+      return cleanSource(
+        tg?.initDataUnsafe?.start_param ||
+        qs.get('tgWebAppStartParam') ||
+        qs.get('startapp') ||
+        qs.get('start_param') ||
+        ''
+      );
+    }catch{return null}
+  }
+
+  function initAttribution(){
+    const incoming=tgWebAppStartParam();
+    let first=null,last=null;
+    try{
+      first=cleanSource(localStorage.getItem('rgp_first_touch'));
+      last=cleanSource(localStorage.getItem('rgp_last_touch'));
+      if(!first){
+        first=incoming||'telegram_direct';
+        localStorage.setItem('rgp_first_touch',first);
+      }
+      if(incoming){
+        last=incoming;
+        localStorage.setItem('rgp_last_touch',last);
+      }else if(!last){
+        last=first;
+        localStorage.setItem('rgp_last_touch',last);
+      }
+    }catch{
+      first=first||incoming||'telegram_direct';
+      last=incoming||last||first;
+    }
+    return {incoming,firstTouch:first||'telegram_direct',lastTouch:last||first||'telegram_direct'};
+  }
+
+  const ATTRIBUTION=initAttribution();
+  window.rgpAttribution={
+    startParam:ATTRIBUTION.incoming,
+    firstTouch:ATTRIBUTION.firstTouch,
+    lastTouch:ATTRIBUTION.lastTouch
+  };
+
+  function sourceName(){
+    return ATTRIBUTION.firstTouch||'telegram_direct';
   }
 
   async function sha256(value){
@@ -62,6 +110,10 @@
         metadata:{
           telegram:!!window.Telegram?.WebApp?.initData,
           platform:window.Telegram?.WebApp?.platform||'web',
+          tgWebAppStartParam:ATTRIBUTION.incoming,
+          first_touch:ATTRIBUTION.firstTouch,
+          last_touch:ATTRIBUTION.lastTouch,
+          balance_version:BALANCE_VERSION,
           ...extra.metadata
         }
       };
