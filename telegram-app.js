@@ -11,7 +11,8 @@
 
   root.classList.add('telegram-mode');
   try{tg.ready();tg.expand();}catch(e){}
-  try{if(tg.disableVerticalSwipes)tg.disableVerticalSwipes();}catch(e){}
+  /* In the catalog keep Telegram vertical swipes enabled so the page can scroll normally. */
+  try{if(tg.enableVerticalSwipes)tg.enableVerticalSwipes();}catch(e){}
 
   function cssPx(name,v){if(Number.isFinite(v)&&v>=0)root.style.setProperty(name,Math.round(v)+'px')}
   function safeInsets(){
@@ -100,13 +101,17 @@
 
   async function enterGameMode(){
     try{tg.expand();}catch(e){}
+    try{if(tg.disableVerticalSwipes)tg.disableVerticalSwipes();}catch(e){}
     try{if(tg.requestFullscreen&&!tg.isFullscreen)tg.requestFullscreen();}catch(e){}
     try{if(tg.lockOrientation)tg.lockOrientation();}catch(e){}
     setTimeout(burst,0);
   }
   function leaveGameMode(){
     try{if(tg.unlockOrientation)tg.unlockOrientation();}catch(e){}
+    try{if(tg.enableVerticalSwipes)tg.enableVerticalSwipes();}catch(e){}
     root.classList.remove('telegram-tablet');
+    document.documentElement.style.overflowY='';
+    document.body.style.overflowY='';
   }
 
   document.getElementById('play')?.addEventListener('click',enterGameMode,true);
