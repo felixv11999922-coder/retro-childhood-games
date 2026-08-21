@@ -69,6 +69,18 @@
 <script src="steel-assault.js?v=1.2.0"></script>
 <script src="steel-assault-scroll-fix.js?v=1.2.0"></script>
 <script src="steel-assault-analytics.js?v=1.2.0"></script>
-<script>document.getElementById('backCatalog').onclick=function(){location.href='v16-8.html?catalog=1'};</script>
+<script>
+(function(){
+  const back=document.getElementById('backCatalog');
+  if(!back)return;
+  back.onclick=function(){
+    if(window.parent!==window){
+      window.parent.postMessage({type:'rgp-close-steel'},location.origin);
+    }else{
+      location.href='v16-8.html';
+    }
+  };
+})();
+</script>
 </body>
 </html>
