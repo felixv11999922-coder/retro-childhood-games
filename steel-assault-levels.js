@@ -1,8 +1,8 @@
 'use strict';
 window.SteelAssaultLevels=[
- {id:1,name:'Зелёный рубеж',mode:'horizontal',theme:'jungle',scene:'jungle_outpost',length:4200,difficulty:.68,boss:'Бронестена',bossType:'fortress',hazards:'none',pickups:['V','F']},
- {id:2,name:'Разрушенный порт',mode:'horizontal',theme:'port',scene:'port_ruins',length:4550,difficulty:.76,boss:'Кран-Охотник',bossType:'walker',hazards:'pits',pickups:['V','F','B']},
- {id:3,name:'Башня водосброса',mode:'vertical',theme:'waterfall',scene:'waterfall_cliffs',height:3300,difficulty:.80,boss:'Скат-9',bossType:'orbiter',hazards:'rocks',pickups:['F','L']},
+ {id:1,name:'Штурм аванпоста',description:'Высадка у передового вражеского поста. Пройди лесной рубеж, подави охрану и уничтожь сторожевую платформу.',mode:'horizontal',theme:'frontier',scene:'frontier_outpost',length:4000,difficulty:.62,boss:'Сторожевая платформа',bossType:'fortress',hazards:'none',pickups:['V','F']},
+ {id:2,name:'Речной перевал',description:'Пробейся через разрушенную переправу над быстрой рекой. Прыгай через разрывы моста и удержи плацдарм.',mode:'horizontal',theme:'river',scene:'river_pass',length:4450,difficulty:.72,boss:'Амфибия-12',bossType:'walker',hazards:'pits',pickups:['V','F','B']},
+ {id:3,name:'Цитадель водопада',description:'Вертикальный штурм гидрокрепости среди скал и водопадов. Поднимайся по платформам, уклоняйся от камней и доберись до командного узла.',mode:'vertical',theme:'waterfall',scene:'waterfall_citadel',height:3350,difficulty:.80,boss:'Гидра-9',bossType:'orbiter',hazards:'rocks',pickups:['F','L']},
  {id:4,name:'Каньон B-17',mode:'horizontal',theme:'energy',scene:'canyon_radar',length:4700,difficulty:.86,boss:'Магмовый страж',bossType:'titan',hazards:'flame',pickups:['V','L','B']},
  {id:5,name:'Бункер-7',mode:'bunker',theme:'bunker',scene:'bunker',rooms:4,difficulty:.90,boss:'Оптическое ядро',bossType:'eye',hazards:'gate',pickups:['F','L']},
  {id:6,name:'Ледяной фронт',mode:'horizontal',theme:'snow',scene:'snow_base',length:5000,difficulty:.95,boss:'Полярный шагоход',bossType:'walker',hazards:'pits',pickups:['V','F','X']},
