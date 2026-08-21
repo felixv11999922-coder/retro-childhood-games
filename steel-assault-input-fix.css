@@ -1,0 +1,5 @@
+/* Telegram/iOS input hardening for Steel Assault menu. */
+.hero:after{pointer-events:none!important}
+.heroActions,.heroActions .primary{position:relative;z-index:5}
+.heroActions .primary,#play,.levelCard,.ghost{touch-action:manipulation;-webkit-user-select:none;user-select:none;pointer-events:auto}
+#play{cursor:pointer}
