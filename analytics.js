@@ -7,12 +7,13 @@
   const API_KEY='sb_publishable_dvhExwtVNoB6V6z9QBM2qg_EPOO9sSB';
   const ENDPOINT=SUPABASE_URL+'/rest/v1/analytics_events';
   const SESSION_ID=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2));
-  const BALANCE_VERSION='rebalance_1';
+  const BALANCE_VERSION='rebalance_2';
   let userKeyPromise=null;
-  let lastResultKey='';
   let wasPlaying=false;
   let lastAttemptKey='';
   let lastAttemptAt=0;
+  let resultTrackedForVisibleCycle=false;
+  let resultTimer=0;
   const startedLevels=new Set();
 
   function levelNumber(){
@@ -71,9 +72,7 @@
     lastTouch:ATTRIBUTION.lastTouch
   };
 
-  function sourceName(){
-    return ATTRIBUTION.firstTouch||'telegram_direct';
-  }
+  function sourceName(){return ATTRIBUTION.firstTouch||'telegram_direct'}
 
   async function sha256(value){
     if(!crypto?.subtle)return value;
@@ -114,6 +113,7 @@
           first_touch:ATTRIBUTION.firstTouch,
           last_touch:ATTRIBUTION.lastTouch,
           balance_version:BALANCE_VERSION,
+          analytics_version:'1.2.0',
           ...extra.metadata
         }
       };
@@ -129,15 +129,34 @@
 
   function inspectResult(){
     const over=document.getElementById('over');
-    if(!over||over.classList.contains('hidden'))return;
+    if(!over)return;
+    if(over.classList.contains('hidden')){
+      resultTrackedForVisibleCycle=false;
+      return;
+    }
+    if(resultTrackedForVisibleCycle)return;
     const badge=(document.getElementById('resultBadge')?.textContent||'').trim().toLowerCase();
     const title=(document.getElementById('resultTitle')?.textContent||'').trim();
     const lvl=levelNumber();
-    const key=[badge,title,lvl].join('|');
-    if(!badge||key===lastResultKey)return;
-    lastResultKey=key;
-    if(badge.includes('уровень пройден')) track('level_complete',{level:lvl});
-    else if(badge.includes('поражение')) track('defeat',{level:lvl,metadata:{title}});
+    if(!badge)return;
+    if(badge.includes('уровень пройден')){
+      resultTrackedForVisibleCycle=true;
+      track('level_complete',{level:lvl});
+    }else if(badge.includes('поражение')){
+      resultTrackedForVisibleCycle=true;
+      track('defeat',{level:lvl,metadata:{title}});
+    }
+  }
+
+  function scheduleResultInspection(){
+    const over=document.getElementById('over');
+    if(over?.classList.contains('hidden')){
+      resultTrackedForVisibleCycle=false;
+      clearTimeout(resultTimer);
+      return;
+    }
+    clearTimeout(resultTimer);
+    resultTimer=setTimeout(inspectResult,35);
   }
 
   function isPlaying(){
@@ -181,12 +200,13 @@
     track('miniapp_open',{level:null});
     document.getElementById('share')?.addEventListener('click',()=>track('share_click',{level:null}),true);
     document.addEventListener('click',ev=>{
-      if(ev.target?.closest?.('#rewardTry')) track('reward_click',{level:levelNumber()});
+      // Reward-события пишет adsgram-reward.js: так мы не считаем быстрые
+      // повторные тапы как отдельные рекламные намерения.
       if(ev.target?.closest?.('#primaryAction')) setTimeout(trackAttempt,160);
     },true);
 
     const over=document.getElementById('over');
-    if(over)new MutationObserver(()=>setTimeout(inspectResult,0)).observe(over,{attributes:true,subtree:true,childList:true,characterData:true});
+    if(over)new MutationObserver(scheduleResultInspection).observe(over,{attributes:true,subtree:true,childList:true,characterData:true});
 
     wasPlaying=false;
     const bodyObserver=new MutationObserver(()=>setTimeout(()=>{inspectPlaying();inspectLevelStart()},0));
