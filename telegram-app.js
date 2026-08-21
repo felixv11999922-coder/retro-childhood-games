@@ -7,12 +7,15 @@
   const hud=game?.querySelector('.hud');
   const touchpad=game?.querySelector('.touchpadWrap');
   const fire=game?.querySelector('.fire');
+  const catalog=document.querySelector('.app');
   if(!tg){root.classList.add('browser-mode');return;}
 
   root.classList.add('telegram-mode');
   try{tg.ready();tg.expand();}catch(e){}
-  /* In the catalog keep Telegram vertical swipes enabled so the page can scroll normally. */
-  try{if(tg.enableVerticalSwipes)tg.enableVerticalSwipes();}catch(e){}
+  /* Telegram vertical swipes are gestures for minimizing/closing the Mini App,
+     not page scrolling. Disable them so vertical drags are delivered to our
+     dedicated catalog scroller. The header can still minimize/close the app. */
+  try{if(tg.disableVerticalSwipes)tg.disableVerticalSwipes();}catch(e){}
 
   function cssPx(name,v){if(Number.isFinite(v)&&v>=0)root.style.setProperty(name,Math.round(v)+'px')}
   function safeInsets(){
@@ -108,10 +111,9 @@
   }
   function leaveGameMode(){
     try{if(tg.unlockOrientation)tg.unlockOrientation();}catch(e){}
-    try{if(tg.enableVerticalSwipes)tg.enableVerticalSwipes();}catch(e){}
+    try{if(tg.disableVerticalSwipes)tg.disableVerticalSwipes();}catch(e){}
     root.classList.remove('telegram-tablet');
-    document.documentElement.style.overflowY='';
-    document.body.style.overflowY='';
+    if(catalog){catalog.style.overflowY='auto';catalog.style.touchAction='pan-y';}
   }
 
   document.getElementById('play')?.addEventListener('click',enterGameMode,true);
@@ -127,5 +129,5 @@
   const scoreLabel=document.querySelector('.hud>div:first-child span');
   if(scoreLabel)scoreLabel.textContent='ОЧКИ';
   burst();
-  console.info('Tank Base: rendered overlap guard active');
+  console.info('Tank Base: Telegram catalog scroller active');
 })();
