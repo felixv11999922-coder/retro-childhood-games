@@ -19,7 +19,8 @@
       body.style.overflowY='auto';
       body.style.touchAction='pan-y';
       menu.style.overflow='visible';
-      try{window.Telegram?.WebApp?.enableVerticalSwipes?.()}catch{}
+      /* Keep vertical gestures inside the page instead of letting Telegram consume them. */
+      try{window.Telegram?.WebApp?.disableVerticalSwipes?.()}catch{}
     }else{
       root.style.height='100%';
       root.style.overflow='hidden';
