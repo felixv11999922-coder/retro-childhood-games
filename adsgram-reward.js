@@ -16,6 +16,20 @@
     }
   }
 
+  function levelNumber(){
+    const text=document.getElementById('level')?.textContent||'';
+    const n=parseInt(text,10);
+    return Number.isFinite(n)?n:null;
+  }
+
+  function track(name,metadata={}){
+    window.rgpTrack?.(name,{level:levelNumber(),metadata:{ad_type:'reward',block_id:REWARD_BLOCK_ID,...metadata}});
+  }
+
+  function errorText(e){
+    try{return String(e?.description||e?.message||e?.error||e||'unknown').slice(0,240)}catch{return 'unknown'}
+  }
+
   function initController(){
     try{
       if(window.Adsgram) controller=window.Adsgram.init({blockId:REWARD_BLOCK_ID});
@@ -39,14 +53,14 @@
     if(!rewardBtn)return;
     const show=isDefeatScreen() && !usedLevels.has(currentLevelKey());
     rewardBtn.style.display=show?'':'none';
-    rewardBtn.disabled=false;
-    rewardBtn.textContent='📺 Смотреть рекламу → +1 попытка';
+    rewardBtn.disabled=busy;
+    rewardBtn.textContent=busy?'Реклама…':'📺 Смотреть рекламу → +1 попытка';
   }
 
   function grantExtraTry(){
     const key=currentLevelKey();
-    usedLevels.add(key);
     try{
+      usedLevels.add(key);
       retriesRemaining=Math.max(0,retriesRemaining)+1;
       primaryMode='retry';
       const primary=document.getElementById('primaryAction');
@@ -56,38 +70,49 @@
       if(title) title.textContent='Бонусная попытка получена';
       if(mini) mini.textContent=`Дополнительная попытка за рекламу начислена. Продолжений: ${retriesRemaining}.`;
       notify('✅ +1 попытка начислена');
-      window.rgpTrack?.('reward_complete');
-      // Do not auto-resume WebAudio here. On iOS Telegram the ad overlay may
-      // return without a fresh media user gesture and AudioContext.resume()
-      // can reject with NotAllowedError even though the reward succeeded.
+      track('reward_granted',{retries_remaining:Number(retriesRemaining)||0});
+      return true;
     }catch(e){
       console.error('Reward grant failed',e);
+      track('reward_error',{stage:'grant',error:errorText(e)});
       notify('Не удалось начислить попытку');
+      return false;
+    }finally{
+      refreshButton();
     }
-    refreshButton();
   }
 
   async function showReward(){
     if(busy)return;
     busy=true;
-    rewardBtn.disabled=true;
-    rewardBtn.textContent='Реклама…';
+    track('reward_click');
+    refreshButton();
     if(!controller) initController();
     if(!controller){
+      track('reward_error',{stage:'init',error:'controller_unavailable'});
       notify('Реклама сейчас недоступна');
       busy=false;
       refreshButton();
       return;
     }
+
+    let opened=false;
     try{
-      const result=await controller.show();
+      track('reward_request');
+      const showPromise=controller.show();
+      opened=true;
+      track('reward_open',{stage:'show_called'});
+      const result=await showPromise;
       if(result && result.done===false) throw result;
+      track('reward_complete');
       grantExtraTry();
       console.info('AdsGram reward completed',result);
     }catch(e){
       console.info('AdsGram reward skipped/unavailable',e);
+      track('reward_error',{stage:opened?'show':'request',error:errorText(e)});
       notify('Награда не начислена: досмотрите рекламу до конца');
     }finally{
+      if(opened)track('reward_close');
       busy=false;
       refreshButton();
     }
@@ -111,9 +136,7 @@
     actions.insertBefore(rewardBtn,toMenu||null);
 
     const over=document.getElementById('over');
-    if(over){
-      new MutationObserver(()=>setTimeout(refreshButton,0)).observe(over,{attributes:true,subtree:true,childList:true,characterData:true});
-    }
+    if(over)new MutationObserver(()=>setTimeout(refreshButton,0)).observe(over,{attributes:true,subtree:true,childList:true,characterData:true});
 
     document.getElementById('play')?.addEventListener('click',()=>usedLevels.clear(),true);
     document.getElementById('primaryAction')?.addEventListener('click',()=>{
