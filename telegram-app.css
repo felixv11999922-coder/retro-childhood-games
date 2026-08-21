@@ -1,7 +1,10 @@
 :root{--tg-vh:100dvh;--tg-stable-vh:100dvh;--tg-safe-top:0px;--tg-safe-right:0px;--tg-safe-bottom:0px;--tg-safe-left:0px;--tg-board-px:0px;--tg-board-y:0px;--tg-controls-top:auto}
-/* Catalog/menu must remain a normal vertically scrollable document inside Telegram. */
-html.telegram-mode{width:100%;min-height:100%;height:auto;overflow-x:hidden;overflow-y:auto;overscroll-behavior-x:none;-webkit-overflow-scrolling:touch}
-html.telegram-mode body{width:100%;min-height:100%;height:auto;overflow-x:hidden;overflow-y:auto;overscroll-behavior-x:none;overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+/* Telegram iOS/iPadOS is most reliable when the document itself stays fixed and
+   the catalog scrolls inside one dedicated container. */
+html.telegram-mode,html.telegram-mode body{width:100%!important;height:100%!important;min-height:100%!important;overflow:hidden!important;overscroll-behavior:none!important;background:#0b0d12!important}
+html.telegram-mode body:not(.playing) .app{display:block!important;width:min(1080px,100%)!important;height:100dvh!important;height:var(--tg-vh,100dvh)!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior-y:contain!important;touch-action:pan-y!important;scroll-behavior:auto!important;padding-bottom:max(34px,env(safe-area-inset-bottom))!important}
+html.telegram-mode body:not(.playing) #menu{display:block!important;min-height:max-content!important;touch-action:pan-y!important}
+html.telegram-mode body:not(.playing) .catalogTop,html.telegram-mode body:not(.playing) .gameHero,html.telegram-mode body:not(.playing) .catalogHeading,html.telegram-mode body:not(.playing) .gameCatalog,html.telegram-mode body:not(.playing) .gameCard,html.telegram-mode body:not(.playing) .board{touch-action:pan-y!important}
 /* Lock the viewport only while the tank game itself is running. */
 html.telegram-mode body.playing{height:100%!important;overflow:hidden!important;overscroll-behavior:none!important;touch-action:none!important}
 html.telegram-mode body.playing #game{height:100dvh!important;min-height:100dvh!important;inset:0!important;overflow:hidden!important}
