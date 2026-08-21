@@ -1,0 +1,42 @@
+#steelEarlyMissionArt{
+  position:absolute;
+  pointer-events:none;
+  z-index:0;
+  image-rendering:pixelated;
+}
+#steelMissionSceneTag{
+  position:absolute;
+  z-index:2;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  max-width:calc(100% - 28px);
+  padding:7px 12px;
+  border:1px solid rgba(213,235,240,.22);
+  border-radius:999px;
+  background:rgba(5,12,17,.68);
+  color:#e9f8f5;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.12em;
+  text-align:center;
+  opacity:0;
+  transition:opacity .18s ease;
+  pointer-events:none;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  backdrop-filter:blur(5px);
+}
+#steelMissionSceneTag.show{opacity:.92}
+.levelCard{min-height:156px}
+.levelCard .missionDesc{
+  margin:9px 0 0;
+  color:#8297ad;
+  font-size:11px;
+  line-height:1.38;
+}
+@media(max-width:640px){
+  #steelMissionSceneTag{top:7px;font-size:9px;padding:6px 9px}
+  .levelCard{min-height:150px}
+}
