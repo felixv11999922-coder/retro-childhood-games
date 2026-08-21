@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#071019">
+<title>Retro Games Play — Стальной десант</title>
+<script src="https://telegram.org/js/telegram-web-app.js?59"></script>
+<link rel="stylesheet" href="steel-assault.css?v=1.0.0">
+</head>
+<body>
+<main id="menu" class="shell">
+  <header class="topbar">
+    <button id="backCatalog" class="ghost">← Каталог</button>
+    <div class="brand">RETRO GAMES PLAY · GAME 02</div>
+    <button id="share" class="ghost">Поделиться</button>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">2D RUN-AND-GUN</div>
+    <h1>Стальной десант</h1>
+    <p>Беги, прыгай, стреляй в 8 направлениях, собирай усиления и прорвись через 12 самостоятельных миссий.</p>
+    <div class="chips"><span>12 миссий</span><span>5 видов оружия</span><span>one-hit death</span><span>боссы</span></div>
+    <div class="heroActions"><button id="play" class="primary">▶ НАЧАТЬ МИССИЮ</button></div>
+  </section>
+
+  <section class="howto panel">
+    <h2>Управление</h2>
+    <div class="howgrid">
+      <div><b>Левый стик</b><span>бег + направление прицела</span></div>
+      <div><b>ПРЫЖОК</b><span>прыжок и уклонение</span></div>
+      <div><b>ОГОНЬ</b><span>удерживай для стрельбы</span></div>
+      <div><b>На клавиатуре</b><span>стрелки/WASD · Z прыжок · X огонь</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="sectionTitle"><div><div class="eyebrow">КАМПАНИЯ</div><h2>Миссии</h2></div><div id="progressText" class="muted"></div></div>
+    <div id="levelGrid" class="levelGrid"></div>
+  </section>
+
+  <section class="panel scorePanel"><h2>Лучший результат</h2><strong id="bestScore">0</strong><span>очков</span></section>
+</main>
+
+<section id="game" class="game hidden">
+  <div class="hud">
+    <button id="gameBack" class="hudBtn">←</button>
+    <div><span>ОЧКИ</span><strong id="score">0</strong></div>
+    <div><span>МИССИЯ</span><strong id="level">1/12</strong></div>
+    <div><span>ЖИЗНИ</span><strong id="lives">4</strong></div>
+    <div><span>ОРУЖИЕ</span><strong id="weapon">PULSE</strong></div>
+    <div id="bossHud" class="bossHud hidden"><span>БОСС</span><div><i id="bossHp"></i></div></div>
+    <button id="pause" class="hudBtn">Ⅱ</button>
+  </div>
+  <div class="canvasWrap"><canvas id="gameCanvas" width="960" height="540"></canvas><div id="toast" class="toast"></div></div>
+  <div class="controls">
+    <div id="pad" class="pad" aria-label="Стик"><div id="stick" class="stick"></div><span class="pUp">▲</span><span class="pDown">▼</span><span class="pLeft">◀</span><span class="pRight">▶</span></div>
+    <div class="actionButtons"><button id="jump" class="jumpBtn">ПРЫЖОК</button><button id="fire" class="fireBtn">ОГОНЬ</button></div>
+  </div>
+</section>
+
+<div id="modal" class="modal hidden"><div class="dialog"><div id="modalBadge" class="eyebrow">МИССИЯ</div><h2 id="modalTitle">Готово</h2><p id="modalText"></p><div class="modalActions"><button id="modalPrimary" class="primary">Продолжить</button><button id="modalMenu" class="ghost">В меню</button></div></div></div>
+<div id="pauseModal" class="modal hidden"><div class="dialog"><div class="eyebrow">ПАУЗА</div><h2>Бой приостановлен</h2><p>Продолжи с того же места или вернись в список миссий.</p><div class="modalActions"><button id="resume" class="primary">Продолжить</button><button id="pauseMenu" class="ghost">В меню</button></div></div></div>
+
+<script src="steel-assault-levels.js?v=1.0.0"></script>
+<script src="steel-assault.js?v=1.0.0"></script>
+<script src="steel-assault-analytics.js?v=1.0.0"></script>
+</body>
+</html>
