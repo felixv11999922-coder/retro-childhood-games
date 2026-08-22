@@ -1,4 +1,4 @@
-/* Steel Assault v4 — make the cinematic layer the visible actor layer. */
+/* Steel Assault v4.1 — synchronized cinematic scene. */
 #steelCharacterArt,#steelCharacterRemaster,#saV2Actors{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}
 #steelCinematicActors{
   display:block!important;
@@ -15,59 +15,63 @@
   max-height:none!important;
   z-index:34!important;
   image-rendering:auto!important;
-  filter:drop-shadow(0 8px 8px rgba(0,0,0,.34)) saturate(1.10) contrast(1.05);
+  filter:drop-shadow(0 6px 7px rgba(0,0,0,.30)) saturate(1.12) contrast(1.05);
 }
-/* The original canvas remains the physics/effects layer, not the visual world. */
 #gameCanvas{
   z-index:18!important;
-  opacity:.44!important;
+  opacity:.36!important;
   mix-blend-mode:screen!important;
-  filter:saturate(1.12) contrast(1.08)!important;
+  filter:saturate(1.10) contrast(1.06)!important;
 }
 #steelSceneRemaster{
   z-index:2!important;
   opacity:1!important;
   visibility:visible!important;
-  filter:saturate(1.32) contrast(1.14) brightness(1.04)!important;
+  filter:saturate(1.28) contrast(1.12) brightness(1.02)!important;
 }
-#steelSceneRemasterFx{z-index:25!important;opacity:.88!important}
-/* Controls float over the scene instead of creating a separate black panel. */
+#steelSceneRemasterFx{z-index:25!important;opacity:.82!important}
+
+/* Fill the portrait Telegram viewport atmospherically without stretching 16:9 game geometry. */
+#game .canvasWrap{
+  background:
+    radial-gradient(circle at 28% 28%,rgba(238,181,91,.18),transparent 24%),
+    linear-gradient(180deg,#345269 0%,#253e4e 33%,#132b31 62%,#071019 100%)!important;
+}
+#game .canvasWrap:after{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(5,12,18,.12),rgba(5,12,18,0) 26%,rgba(5,12,18,.08) 67%,rgba(3,8,13,.62));
+}
+
+/* Controls float over the battlefield. */
 #game .controls{
-  background:linear-gradient(180deg,rgba(2,7,12,0) 0%,rgba(2,7,12,.05) 25%,rgba(2,7,12,.34) 100%)!important;
-  height:158px!important;
+  background:linear-gradient(180deg,rgba(2,7,12,0) 0%,rgba(2,7,12,.04) 30%,rgba(2,7,12,.28) 100%)!important;
+  height:152px!important;
   padding:8px 14px calc(8px + env(safe-area-inset-bottom))!important;
 }
-#game .pad{opacity:.93}
-#game .jumpBtn,#game .fireBtn{opacity:.96}
-/* Objective only; never show the game title over combat. */
+#game .pad{opacity:.92}
+#game .jumpBtn,#game .fireBtn{opacity:.95}
 #steelMissionObjective{z-index:58!important}
 #steelMissionObjective span,#steelMissionObjective b{display:inline!important}
-/* Give the scene more vertical presence in narrow Telegram panes. */
+
+/* Important: background, physics canvas, FX and cinematic actors use EXACTLY the same transform. */
 @media(max-aspect-ratio:4/3){
-  #steelSceneRemaster,#steelSceneRemasterFx{
-    width:100%!important;
-    height:100%!important;
-    left:0!important;
-    top:0!important;
-    transform:none!important;
-  }
-  #gameCanvas,#steelCinematicActors{
-    width:126%!important;
+  #gameCanvas,#steelSceneRemaster,#steelSceneRemasterFx,#steelCinematicActors{
+    width:138%!important;
     height:auto!important;
     aspect-ratio:16/9!important;
-    left:-6%!important;
+    left:-8%!important;
     right:auto!important;
-    top:46%!important;
+    top:45%!important;
     bottom:auto!important;
     transform:translateY(-50%)!important;
     transform-origin:center center!important;
   }
-  #game .controls{height:150px!important}
+  #game .controls{height:146px!important}
 }
 @media(max-width:560px){
-  #game .controls{height:144px!important}
-  #game .pad{width:108px!important;height:108px!important;flex-basis:108px!important}
-  #game .stick{width:46px!important;height:46px!important;left:29px!important;top:29px!important}
-  #game .jumpBtn{width:76px!important;height:76px!important}
-  #game .fireBtn{width:88px!important;height:88px!important}
+  #game .controls{height:140px!important;padding-left:10px!important;padding-right:10px!important}
+  #game .pad{width:106px!important;height:106px!important;flex-basis:106px!important}
+  #game .stick{width:44px!important;height:44px!important;left:29px!important;top:29px!important}
+  #game .jumpBtn{width:74px!important;height:74px!important;font-size:11px!important}
+  #game .fireBtn{width:86px!important;height:86px!important;font-size:13px!important}
 }
