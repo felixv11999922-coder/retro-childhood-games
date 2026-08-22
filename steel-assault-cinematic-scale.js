@@ -1,15 +1,16 @@
 'use strict';
 (function(){
   /*
-   * The cinematic renderer deliberately draws detailed characters larger than
-   * the old collision rectangles. In a narrow Telegram viewport that became
-   * too large. Scale only actor-local transforms, keeping their feet/anchors
-   * on the original gameplay coordinates so hitboxes remain unchanged.
+   * Cinematic actors are rendered from the old gameplay hitboxes, but their
+   * artwork is intentionally much more detailed. Keep their feet anchored to
+   * the original physics coordinates while reducing only local actor scale.
+   * This preserves collision/gameplay and stops the hero/enemies from filling
+   * the whole Telegram viewport.
    */
   const proto=CanvasRenderingContext2D.prototype;
   if(proto.__steelCinematicScalePatched)return;
   const nativeScale=proto.scale;
-  const ACTOR_FACTOR=0.68;
+  const ACTOR_FACTOR=0.52;
   proto.scale=function(x,y){
     try{
       if(this.canvas&&this.canvas.id==='steelCinematicActors'){
@@ -22,5 +23,5 @@
     return nativeScale.call(this,x,y);
   };
   proto.__steelCinematicScalePatched=true;
-  document.documentElement.dataset.steelActorScale='balanced-v41';
+  document.documentElement.dataset.steelActorScale='balanced-v42';
 })();
