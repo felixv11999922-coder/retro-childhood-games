@@ -54,10 +54,9 @@
 
   function layer(id){return document.getElementById(id)}
   function drawLayer(el,sx,sy,sw,sh,dw,dh,alpha=1,mode='source-over'){
-    if(!el)return;
+    if(!el)return false;
     ctx.save();ctx.globalAlpha=alpha;ctx.globalCompositeOperation=mode;
-    try{ctx.drawImage(el,sx,sy,sw,sh,0,0,dw,dh)}catch{}
-    ctx.restore();
+    try{ctx.drawImage(el,sx,sy,sw,sh,0,0,dw,dh);ctx.restore();return true}catch{ctx.restore();return false}
   }
 
   function frame(){
@@ -74,26 +73,29 @@
     const target=Math.max(0,Math.min(W-cropW,(hero.seen?hero.x:95)-lookAhead));
     camX+=(target-camX)*.13;
     if(Math.abs(target-camX)<.15)camX=target;
-
-    /* Lift the source a little so the ground sits just above the controls. */
     const cropY=Math.max(0,Math.min(H-cropH,8));
 
-    const bg=layer('saPhotoBg');
+    const n=levelNo();
+    const hasPhoto=!!(window.SteelAssaultSceneImages&&window.SteelAssaultSceneImages[n]);
+    const photoBg=layer('saPhotoBg');
+    const remasterBg=layer('steelSceneRemaster');
     const terrain=layer('saPhotoTerrain');
     const actors=layer('saPhotoActors');
     const fx=layer('steelSceneRemasterFx');
 
-    drawLayer(bg,camX,cropY,cropW,cropH,dw,dh,1);
-    if(!bg){
+    let painted=false;
+    if(hasPhoto)painted=drawLayer(photoBg,camX,cropY,cropW,cropH,dw,dh,1);
+    else painted=drawLayer(remasterBg,camX,cropY,cropW,cropH,dw,dh,1);
+    if(!painted){
       const g=ctx.createLinearGradient(0,0,0,dh);g.addColorStop(0,'#24445d');g.addColorStop(1,'#0c1a23');ctx.fillStyle=g;ctx.fillRect(0,0,dw,dh);
     }
     drawLayer(terrain,camX,cropY,cropW,cropH,dw,dh,1);
     drawLayer(src,camX,cropY,cropW,cropH,dw,dh,.20,'screen');
-    drawLayer(fx,camX,cropY,cropW,cropH,dw,dh,.35,'screen');
+    drawLayer(fx,camX,cropY,cropW,cropH,dw,dh,.32,'screen');
     drawLayer(actors,camX,cropY,cropW,cropH,dw,dh,1);
 
     /* Cinematic grading and foreground depth. */
-    let grad=ctx.createLinearGradient(0,0,0,dh);
+    const grad=ctx.createLinearGradient(0,0,0,dh);
     grad.addColorStop(0,'rgba(3,9,16,.08)');grad.addColorStop(.62,'rgba(3,9,16,0)');grad.addColorStop(1,'rgba(2,8,13,.25)');
     ctx.fillStyle=grad;ctx.fillRect(0,0,dw,dh);
     requestAnimationFrame(frame);
