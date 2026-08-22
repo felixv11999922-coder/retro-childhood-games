@@ -3,6 +3,7 @@
   pointer-events:none;
   z-index:0;
   image-rendering:pixelated;
+  display:none!important;
 }
 #steelMissionSceneTag{
   position:absolute;
