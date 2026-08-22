@@ -96,7 +96,7 @@
     if(!overlay||!frame)return;
     const src=new URL('steel-assault.html',location.href);
     src.searchParams.set('embedded','1');
-    src.searchParams.set('v','1.6.1');
+    src.searchParams.set('v','2.1.0');
     if(p)src.searchParams.set('startapp',p);
     frame.src=src.pathname+src.search;
     overlay.classList.remove('hidden');
