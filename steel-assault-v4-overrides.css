@@ -1,85 +1,85 @@
-/* Steel Assault v4.3 — photo actors + stable wide battlefield. */
-#steelCharacterArt,#steelCharacterRemaster,#saV2Actors,#steelCinematicActors{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}
-#saPhotoActors,#saPhotoTerrain{
-  display:block!important;
-  visibility:visible!important;
-  opacity:1!important;
-  pointer-events:none!important;
-  position:absolute!important;
-  max-width:none!important;
-  max-height:none!important;
+/* Steel Assault v4.4 — single full-screen battlefield geometry for photo renderer. */
+#steelCharacterArt,#steelCharacterRemaster,#saV2Actors,#steelCinematicActors,#steelSceneArt,#steelEarlyMissionArt{
+  display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important
 }
-#saPhotoActors{
-  z-index:34!important;
-  image-rendering:auto!important;
-  filter:drop-shadow(0 6px 8px rgba(0,0,0,.38)) saturate(1.08) contrast(1.06);
-}
-#saPhotoTerrain{z-index:24!important;filter:saturate(1.04) contrast(1.04)}
-#saPhotoBg{z-index:3!important;image-rendering:auto!important;filter:saturate(1.08) contrast(1.07) brightness(.98)!important}
-#gameCanvas{
-  z-index:18!important;
-  opacity:.24!important;
-  mix-blend-mode:screen!important;
-  filter:saturate(1.06) contrast(1.04)!important;
-}
-#steelSceneRemaster{
-  z-index:2!important;
-  filter:saturate(1.24) contrast(1.10) brightness(1.03)!important;
-}
-#steelSceneRemasterFx{z-index:27!important;opacity:.72!important}
 
-/* Never show black empty areas around the 16:9 gameplay camera. */
+/* The game is one fixed viewport. HUD and controls float above the battlefield. */
+#game.game:not(.hidden){
+  position:fixed!important;inset:0!important;width:100%!important;height:100dvh!important;
+  min-height:100dvh!important;overflow:hidden!important;background:#08131c!important
+}
 #game .canvasWrap{
-  background:
-    radial-gradient(circle at 25% 18%,rgba(245,191,98,.20),transparent 18%),
-    linear-gradient(180deg,#59758d 0%,#405f71 22%,#294957 45%,#15363f 68%,#07151d 100%)!important;
+  position:absolute!important;inset:0!important;width:100%!important;height:100%!important;
+  min-height:0!important;display:block!important;overflow:hidden!important;isolation:isolate;
+  background:linear-gradient(180deg,#35546b 0%,#274755 33%,#173842 62%,#07151d 100%)!important
 }
 #game .canvasWrap:before{
   content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:linear-gradient(180deg,rgba(255,220,151,.08),transparent 31%),radial-gradient(ellipse at 50% 78%,rgba(14,58,54,.34),transparent 52%);
+  background:radial-gradient(circle at 18% 18%,rgba(255,199,102,.18),transparent 22%),linear-gradient(180deg,rgba(255,255,255,.025),transparent 38%,rgba(0,0,0,.18))
 }
 #game .canvasWrap:after{
-  content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:linear-gradient(180deg,rgba(4,10,16,.08),rgba(4,10,16,0) 22%,rgba(4,10,16,.04) 62%,rgba(3,8,13,.42));
+  content:"";position:absolute;inset:0;z-index:45;pointer-events:none;
+  background:linear-gradient(180deg,rgba(2,7,12,.20) 0%,rgba(2,7,12,0) 18%,rgba(2,7,12,0) 70%,rgba(2,7,12,.40) 100%)
 }
 
+/* CRITICAL: every world layer uses exactly the same CSS box. No 16:9 side transform. */
+#gameCanvas,#saPhotoBg,#saPhotoTerrain,#saPhotoActors,#steelSceneRemaster,#steelSceneRemasterFx{
+  position:absolute!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;
+  width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;
+  aspect-ratio:auto!important;transform:none!important;transform-origin:center center!important;margin:0!important
+}
+#saPhotoBg{display:block;z-index:2!important;image-rendering:auto!important;filter:saturate(1.12) contrast(1.08) brightness(.98)!important}
+#steelSceneRemaster{z-index:2!important;filter:saturate(1.20) contrast(1.08) brightness(1.02)!important}
+#saPhotoTerrain{display:block!important;visibility:visible!important;opacity:1!important;pointer-events:none!important;z-index:18!important;filter:saturate(1.04) contrast(1.04)}
+#gameCanvas{z-index:22!important;opacity:.20!important;mix-blend-mode:screen!important;background:transparent!important;filter:saturate(1.05) contrast(1.03)!important}
+#steelSceneRemasterFx{z-index:26!important;opacity:.62!important;pointer-events:none!important}
+#saPhotoActors{display:block!important;visibility:visible!important;opacity:1!important;pointer-events:none!important;z-index:34!important;image-rendering:auto!important;filter:drop-shadow(0 7px 8px rgba(0,0,0,.42)) saturate(1.10) contrast(1.07)}
+
+/* Compact HUD — battlefield begins behind it, like the visual reference. */
+#game .hud{
+  position:absolute!important;z-index:80!important;left:0!important;right:0!important;top:0!important;
+  min-height:62px!important;height:auto!important;padding:calc(7px + env(safe-area-inset-top)) 7px 7px!important;
+  background:linear-gradient(180deg,rgba(3,9,15,.98),rgba(5,14,23,.91),rgba(5,14,23,.72))!important;
+  border-bottom:1px solid rgba(89,145,194,.25)!important;box-shadow:0 8px 25px rgba(0,0,0,.30)!important
+}
+
+/* Mission label is HUD, not world geometry. Keep it centered and never let it escape right. */
+#steelMissionObjective{
+  display:block!important;visibility:visible!important;opacity:1!important;position:absolute!important;z-index:85!important;
+  top:calc(70px + env(safe-area-inset-top))!important;left:50%!important;right:auto!important;bottom:auto!important;
+  transform:translateX(-50%)!important;width:auto!important;max-width:88%!important;min-width:0!important;
+  padding:6px 12px!important;border-radius:999px!important;border:1px solid rgba(111,177,230,.30)!important;
+  background:rgba(4,14,24,.76)!important;color:#f5f8fc!important;text-align:center!important;
+  font-size:9px!important;line-height:1.2!important;font-weight:900!important;letter-spacing:.08em!important;text-transform:uppercase!important;
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;pointer-events:none!important;
+  box-shadow:0 7px 22px rgba(0,0,0,.24)!important;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)
+}
+#steelMissionObjective b{display:inline!important;color:#ffd34f!important;margin-right:5px!important}
+#steelMissionObjective span{display:inline!important;color:#f5f8fc!important}
+
+/* Controls are transparent overlays on the lower battlefield — no separate black band. */
 #game .controls{
-  background:linear-gradient(180deg,rgba(2,7,12,0) 0%,rgba(2,7,12,.02) 30%,rgba(2,7,12,.18) 100%)!important;
-  height:138px!important;
-  padding:6px 12px calc(7px + env(safe-area-inset-bottom))!important;
-  border-top-color:rgba(43,64,87,.42)!important;
-  z-index:70!important;
+  position:absolute!important;z-index:90!important;left:0!important;right:0!important;bottom:0!important;
+  height:154px!important;min-height:0!important;display:flex!important;align-items:flex-end!important;justify-content:space-between!important;
+  padding:8px 12px calc(9px + env(safe-area-inset-bottom))!important;border:0!important;
+  background:linear-gradient(180deg,rgba(2,7,12,0) 0%,rgba(2,7,12,.05) 25%,rgba(2,7,12,.38) 100%)!important;
+  pointer-events:none!important
 }
-#game .pad{opacity:.90}
-#game .jumpBtn,#game .fireBtn{opacity:.94}
-#steelMissionObjective{display:block!important;visibility:visible!important;opacity:1!important;z-index:75!important}
-#steelMissionObjective span,#steelMissionObjective b{display:inline!important}
+#game .pad,#game .actionButtons,#game .actionButtons button{pointer-events:auto!important}
+#game .pad{width:104px!important;height:104px!important;flex:0 0 104px!important;opacity:.94!important}
+#game .stick{width:42px!important;height:42px!important;left:29px!important;top:29px!important}
+#game .pUp{left:46px!important;top:7px!important}.pDown{left:46px!important;bottom:7px!important}
+#game .pLeft{left:7px!important;top:43px!important}.pRight{right:7px!important;top:43px!important}
+#game .actionButtons{gap:9px!important;align-items:flex-end!important}
+#game .jumpBtn{width:72px!important;height:72px!important;font-size:10px!important;opacity:.96!important}
+#game .fireBtn{width:84px!important;height:84px!important;font-size:12px!important;opacity:.97!important}
+#toast{z-index:95!important;bottom:150px!important}
 
-/* One camera transform for physics, terrain, actors and whichever background is active. */
-@media(max-aspect-ratio:4/3){
-  #gameCanvas,#steelSceneRemaster,#steelSceneRemasterFx,#saPhotoBg,#saPhotoTerrain,#saPhotoActors{
-    width:120%!important;
-    height:auto!important;
-    aspect-ratio:16/9!important;
-    left:-10%!important;
-    right:auto!important;
-    top:43%!important;
-    bottom:auto!important;
-    transform:translateY(-50%)!important;
-    transform-origin:center center!important;
-    inset:auto!important;
-  }
-  #game .controls{height:134px!important}
-}
 @media(max-width:560px){
-  #game .controls{height:132px!important;padding-left:9px!important;padding-right:9px!important}
-  #game .pad{width:98px!important;height:98px!important;flex-basis:98px!important}
+  #steelMissionObjective{top:calc(65px + env(safe-area-inset-top))!important;max-width:86%!important;font-size:8px!important;padding:5px 9px!important}
+  #game .controls{height:146px!important;padding-left:9px!important;padding-right:9px!important}
+  #game .pad{width:100px!important;height:100px!important;flex-basis:100px!important}
   #game .stick{width:40px!important;height:40px!important;left:28px!important;top:28px!important}
-  #game .pUp{left:44px!important;top:7px!important}
-  #game .pDown{left:44px!important;bottom:7px!important}
-  #game .pLeft{left:7px!important;top:40px!important}
-  #game .pRight{right:7px!important;top:40px!important}
-  #game .jumpBtn{width:70px!important;height:70px!important;font-size:10px!important}
-  #game .fireBtn{width:82px!important;height:82px!important;font-size:12px!important}
-  #game .actionButtons{gap:8px!important}
+  #game .pUp{left:44px!important}.pDown{left:44px!important}.pLeft{top:41px!important}.pRight{top:41px!important}
+  #game .jumpBtn{width:70px!important;height:70px!important}.fireBtn{width:82px!important;height:82px!important}
 }
