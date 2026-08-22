@@ -1,0 +1,20 @@
+/* Steel Assault photo-art layer v3 */
+#saPhotoBg,#saPhotoTerrain,#saPhotoActors{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;pointer-events:none!important}
+#saPhotoBg{z-index:0!important;filter:saturate(1.10) contrast(1.06) brightness(.94)}
+#saPhotoTerrain{z-index:12!important}
+#gameCanvas{z-index:20!important;background:transparent!important}
+#saPhotoActors{z-index:30!important;filter:drop-shadow(0 7px 7px rgba(0,0,0,.34))}
+#saV2Scene,#saV2Terrain,#saV2Actors,#saMissionObjective,#steelCinematicBg,#steelCinematicActors,#steelSceneArt,#steelSceneRemaster,#steelEarlyMissionArt,#steelCharacterArt,#steelCharacterRemaster{display:none!important;visibility:hidden!important;opacity:0!important}
+#game .canvasWrap{background:#101820!important}
+#game .controls{z-index:70!important;background:linear-gradient(180deg,rgba(3,9,15,0) 0%,rgba(3,9,15,.04) 22%,rgba(3,9,15,.23) 58%,rgba(3,9,15,.52) 100%)!important}
+#game .hud{z-index:80!important}
+#steelMissionObjective{display:block!important;visibility:visible!important;opacity:1!important;z-index:75!important;background:linear-gradient(180deg,rgba(4,14,24,.80),rgba(4,12,20,.67))!important;border-color:rgba(116,178,226,.33)!important;box-shadow:0 8px 24px rgba(0,0,0,.22)!important}
+#toast{z-index:90!important}
+@media(max-width:560px){
+ #game .controls{height:150px!important;padding-bottom:calc(8px + env(safe-area-inset-bottom))!important}
+ #game .pad{width:112px!important;height:112px!important;flex-basis:112px!important}
+ #game .stick{width:46px!important;height:46px!important;left:31px!important;top:31px!important}
+ #game .pUp{left:49px!important}.pDown{left:49px!important}
+ #game .jumpBtn{width:74px!important;height:74px!important}
+ #game .fireBtn{width:86px!important;height:86px!important}
+}
