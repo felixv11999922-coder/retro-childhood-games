@@ -46,7 +46,8 @@ body{overscroll-behavior:none;touch-action:manipulation}
 }
 #gameCanvas{z-index:10!important;background:transparent!important;image-rendering:auto!important}
 #steelCinematicActors{z-index:24!important;pointer-events:none!important;image-rendering:auto!important}
-#steelSceneArt,#steelSceneRemaster,#steelEarlyMissionArt{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+#steelSceneArt,#steelEarlyMissionArt{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+#steelSceneRemaster{z-index:1!important;opacity:1!important;visibility:visible!important;filter:saturate(1.20) contrast(1.10) brightness(.88);pointer-events:none!important}
 #steelSceneFx,#steelSceneRemasterFx{z-index:15!important;mix-blend-mode:screen;opacity:.72}
 #steelCharacterArt,#steelCharacterRemaster{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
 
