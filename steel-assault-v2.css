@@ -1,0 +1,143 @@
+/* Steel Assault Visual Remaster v1.6.0 */
+.game{
+  position:relative;
+  height:100dvh;
+  min-height:100dvh;
+  overflow:hidden;
+  background:#08111c;
+}
+.hud{
+  position:relative;
+  z-index:60;
+  height:72px;
+  min-height:72px;
+  padding:calc(7px + env(safe-area-inset-top)) 8px 7px;
+  gap:6px;
+  background:linear-gradient(180deg,rgba(5,14,28,.98),rgba(6,17,31,.92));
+  border-bottom:1px solid rgba(100,156,213,.28);
+  box-shadow:0 8px 24px rgba(0,0,0,.28);
+}
+.hud>div:not(.bossHud){
+  min-width:76px;
+  padding:6px 8px;
+  border:1px solid rgba(95,146,201,.22);
+  border-radius:12px;
+  background:linear-gradient(180deg,rgba(15,36,61,.94),rgba(7,21,38,.96));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+}
+.hud span{font-size:8px;letter-spacing:.12em;color:#90a9c1}
+.hud strong{font-size:14px;color:#fff}
+.hudBtn{
+  flex:0 0 42px;width:42px;height:42px;
+  border-radius:12px;border:1px solid rgba(104,158,214,.35);
+  background:linear-gradient(180deg,#17304d,#0b1a2c);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 12px rgba(0,0,0,.25)
+}
+.canvasWrap{
+  position:relative;
+  flex:1 1 auto;
+  min-height:0;
+  overflow:hidden;
+  background:linear-gradient(#35597a,#d58a55);
+  isolation:isolate;
+}
+#gameCanvas,
+#saV2Scene,
+#saV2Terrain,
+#saV2Actors{
+  position:absolute!important;
+  inset:0!important;
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:none!important;
+  max-height:none!important;
+  image-rendering:auto!important;
+}
+#saV2Scene{z-index:0}
+#saV2Terrain{z-index:1}
+#gameCanvas{z-index:2!important;background:transparent!important}
+#saV2Actors{z-index:4}
+#steelSceneArt,#steelSceneFx,#steelSceneRemaster,#steelSceneRemasterFx,
+#steelCharacterArt,#steelCharacterRemaster{display:none!important;opacity:0!important}
+.controls{
+  position:absolute!important;
+  left:0;right:0;bottom:0;
+  z-index:50;
+  height:180px!important;
+  padding:18px 18px calc(12px + env(safe-area-inset-bottom))!important;
+  display:flex!important;
+  align-items:flex-end!important;
+  justify-content:space-between!important;
+  background:linear-gradient(180deg,rgba(3,9,16,0) 0%,rgba(3,9,16,.18) 28%,rgba(3,9,16,.67) 100%)!important;
+  border-top:0!important;
+  pointer-events:none;
+}
+.pad,.actionButtons,.actionButtons button{pointer-events:auto}
+.pad{
+  width:138px!important;height:138px!important;
+  border:2px solid rgba(103,155,210,.46)!important;
+  background:radial-gradient(circle at 50% 48%,rgba(92,121,151,.88) 0 20%,rgba(21,42,65,.88) 21% 48%,rgba(5,16,28,.78) 49% 100%)!important;
+  box-shadow:0 10px 28px rgba(0,0,0,.35),inset 0 0 25px rgba(86,142,205,.13);
+  backdrop-filter:blur(3px);
+}
+.stick{
+  width:58px!important;height:58px!important;left:38px!important;top:38px!important;
+  background:linear-gradient(145deg,#71879d,#24384e)!important;
+  box-shadow:inset 0 1px 2px rgba(255,255,255,.18),0 8px 18px rgba(0,0,0,.4)!important
+}
+.pUp{left:61px!important}.pDown{left:61px!important}
+.actionButtons{gap:10px!important;align-items:flex-end!important}
+.actionButtons button{
+  border:2px solid rgba(255,255,255,.12)!important;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.12),0 10px 28px rgba(0,0,0,.38)!important;
+  text-shadow:0 2px 3px rgba(0,0,0,.35)
+}
+.jumpBtn{
+  width:92px!important;height:92px!important;
+  background:linear-gradient(145deg,#2f82d7,#1558a5)!important
+}
+.fireBtn{
+  width:106px!important;height:106px!important;
+  background:linear-gradient(145deg,#f15c58,#b82031)!important
+}
+#saMissionObjective{
+  position:absolute;z-index:45;left:12px;top:12px;
+  max-width:min(310px,62%);
+  padding:8px 12px;
+  border:1px solid rgba(117,173,230,.30);
+  border-radius:12px;
+  background:linear-gradient(180deg,rgba(7,27,48,.86),rgba(4,16,30,.80));
+  box-shadow:0 8px 22px rgba(0,0,0,.24);
+  backdrop-filter:blur(4px);
+  pointer-events:none
+}
+#saMissionObjective b{
+  display:block;color:#ffd752;font-size:9px;letter-spacing:.14em;margin-bottom:2px
+}
+#saMissionObjective span{
+  display:block;color:#f6fbff;font-size:12px;font-weight:800;line-height:1.2
+}
+.toast{z-index:70!important;bottom:190px!important}
+@media(max-width:640px){
+  .hud{height:64px;min-height:64px;padding-top:calc(5px + env(safe-area-inset-top))}
+  .hud>div:not(.bossHud){min-width:56px;padding:5px 6px}
+  .hud>div:nth-of-type(1){display:none}
+  .hud span{font-size:7px}.hud strong{font-size:12px}
+  .controls{height:165px!important;padding:14px 12px calc(8px + env(safe-area-inset-bottom))!important}
+  .pad{width:124px!important;height:124px!important}
+  .stick{width:52px!important;height:52px!important;left:34px!important;top:34px!important}
+  .pUp{left:54px!important}.pDown{left:54px!important}
+  .jumpBtn{width:80px!important;height:80px!important;font-size:12px!important}
+  .fireBtn{width:94px!important;height:94px!important;font-size:14px!important}
+  #saMissionObjective{top:10px;left:9px;max-width:66%;padding:7px 10px}
+}
+@media(max-width:420px){
+  .hud>div:nth-of-type(3){display:none}
+  .controls{height:156px!important}
+  .pad{width:114px!important;height:114px!important}
+  .stick{left:30px!important;top:30px!important}
+  .pUp{left:49px!important}.pDown{left:49px!important}
+  .jumpBtn{width:72px!important;height:72px!important}
+  .fireBtn{width:86px!important;height:86px!important}
+}
