@@ -1,69 +1,63 @@
-/* Steel Assault v4.2 — wider battlefield, smaller actors, stable physics alignment. */
-#steelCharacterArt,#steelCharacterRemaster,#saV2Actors{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}
-#steelCinematicActors{
+/* Steel Assault v4.3 — photo actors + stable wide battlefield. */
+#steelCharacterArt,#steelCharacterRemaster,#saV2Actors,#steelCinematicActors{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+#saPhotoActors,#saPhotoTerrain{
   display:block!important;
   visibility:visible!important;
   opacity:1!important;
   pointer-events:none!important;
   position:absolute!important;
-  inset:0!important;
-  left:0!important;
-  top:0!important;
-  width:100%!important;
-  height:100%!important;
   max-width:none!important;
   max-height:none!important;
+}
+#saPhotoActors{
   z-index:34!important;
   image-rendering:auto!important;
-  filter:drop-shadow(0 5px 6px rgba(0,0,0,.28)) saturate(1.11) contrast(1.04);
+  filter:drop-shadow(0 6px 8px rgba(0,0,0,.38)) saturate(1.08) contrast(1.06);
 }
+#saPhotoTerrain{z-index:24!important;filter:saturate(1.04) contrast(1.04)}
+#saPhotoBg{z-index:3!important;image-rendering:auto!important;filter:saturate(1.08) contrast(1.07) brightness(.98)!important}
 #gameCanvas{
   z-index:18!important;
-  opacity:.31!important;
+  opacity:.24!important;
   mix-blend-mode:screen!important;
-  filter:saturate(1.08) contrast(1.05)!important;
+  filter:saturate(1.06) contrast(1.04)!important;
 }
 #steelSceneRemaster{
   z-index:2!important;
-  opacity:1!important;
-  visibility:visible!important;
   filter:saturate(1.24) contrast(1.10) brightness(1.03)!important;
 }
-#steelSceneRemasterFx{z-index:25!important;opacity:.78!important}
+#steelSceneRemasterFx{z-index:27!important;opacity:.72!important}
 
-/* Extend the location beyond the 16:9 physics strip instead of showing black. */
+/* Never show black empty areas around the 16:9 gameplay camera. */
 #game .canvasWrap{
   background:
-    radial-gradient(circle at 25% 18%,rgba(245,191,98,.22),transparent 18%),
+    radial-gradient(circle at 25% 18%,rgba(245,191,98,.20),transparent 18%),
     linear-gradient(180deg,#59758d 0%,#405f71 22%,#294957 45%,#15363f 68%,#07151d 100%)!important;
 }
 #game .canvasWrap:before{
   content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:
-    linear-gradient(180deg,rgba(255,220,151,.08),transparent 31%),
-    radial-gradient(ellipse at 50% 78%,rgba(14,58,54,.34),transparent 52%);
+  background:linear-gradient(180deg,rgba(255,220,151,.08),transparent 31%),radial-gradient(ellipse at 50% 78%,rgba(14,58,54,.34),transparent 52%);
 }
 #game .canvasWrap:after{
   content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:linear-gradient(180deg,rgba(4,10,16,.08),rgba(4,10,16,0) 22%,rgba(4,10,16,.05) 62%,rgba(3,8,13,.45));
+  background:linear-gradient(180deg,rgba(4,10,16,.08),rgba(4,10,16,0) 22%,rgba(4,10,16,.04) 62%,rgba(3,8,13,.42));
 }
 
-/* Controls float over the battlefield and use less visual space. */
 #game .controls{
-  background:linear-gradient(180deg,rgba(2,7,12,0) 0%,rgba(2,7,12,.025) 30%,rgba(2,7,12,.20) 100%)!important;
+  background:linear-gradient(180deg,rgba(2,7,12,0) 0%,rgba(2,7,12,.02) 30%,rgba(2,7,12,.18) 100%)!important;
   height:138px!important;
   padding:6px 12px calc(7px + env(safe-area-inset-bottom))!important;
-  border-top-color:rgba(43,64,87,.45)!important;
+  border-top-color:rgba(43,64,87,.42)!important;
+  z-index:70!important;
 }
 #game .pad{opacity:.90}
 #game .jumpBtn,#game .fireBtn{opacity:.94}
-#steelMissionObjective{z-index:58!important}
+#steelMissionObjective{display:block!important;visibility:visible!important;opacity:1!important;z-index:75!important}
 #steelMissionObjective span,#steelMissionObjective b{display:inline!important}
 
-/* Keep every gameplay layer on one camera transform. 120% gives a broader
-   view than v4.1 (138%) while still filling enough of a narrow Telegram pane. */
+/* One camera transform for physics, terrain, actors and whichever background is active. */
 @media(max-aspect-ratio:4/3){
-  #gameCanvas,#steelSceneRemaster,#steelSceneRemasterFx,#steelCinematicActors{
+  #gameCanvas,#steelSceneRemaster,#steelSceneRemasterFx,#saPhotoBg,#saPhotoTerrain,#saPhotoActors{
     width:120%!important;
     height:auto!important;
     aspect-ratio:16/9!important;
@@ -73,6 +67,7 @@
     bottom:auto!important;
     transform:translateY(-50%)!important;
     transform-origin:center center!important;
+    inset:auto!important;
   }
   #game .controls{height:134px!important}
 }
