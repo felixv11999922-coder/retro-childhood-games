@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.2.1';
+  const BUILD = '9.3.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -376,7 +376,13 @@
       onGround: true,
       coyote: 0.1,
       fireCooldown: 0,
-      invulnerable: 0
+      invulnerable: 0,
+      walkPhase: 0,
+      stepDistance: 0,
+      recoil: 0,
+      muzzleFlash: 0,
+      lastShotAngle: 0,
+      hitFlash: 0
     };
   }
 
@@ -387,7 +393,7 @@
       sprite: [-22, -45, 92, 141],
       hp: 2,
       speed: 34,
-      range: 58,
+      range: 90,
       score: 120
     },
     runner: {
@@ -405,7 +411,7 @@
       sprite: [-31, -62, 130, 182],
       hp: 6,
       speed: 23,
-      range: 44,
+      range: 72,
       score: 280
     },
     drone: {
@@ -484,6 +490,14 @@
       moveRange: archetype.range,
       phase: random(0, TAU),
       direction: -1,
+      vx: 0,
+      walkPhase: random(0, TAU),
+      patrolDirection: index % 2 ? -1 : 1,
+      thinkTimer: random(0.55, 1.35),
+      recoil: 0,
+      muzzleFlash: 0,
+      lastShotAngle: Math.PI,
+      hitFlash: 0,
       fireCooldown: difficulty.cooldown + index * 0.16 + random(0.15, 0.6),
       baseCooldown: difficulty.cooldown,
       projectileSpeed: difficulty.projectileSpeed,
@@ -671,6 +685,98 @@
     }
   }
 
+  function actorPose(entity) {
+    const speed = Math.abs(entity.vx || 0);
+    const isDrone = entity.type === 'drone';
+    const isTurret = entity.type === 'turret';
+    const grounded = entity.kind === 'player' ? entity.onGround : !isDrone;
+    const moving = grounded && !isTurret && speed > (entity.kind === 'player' ? 18 : 4);
+    const phase = entity.walkPhase || 0;
+    const step = Math.sin(phase);
+    const stride = Math.cos(phase);
+    const idle = Math.sin(state.time * (entity.kind === 'player' ? 2.25 : 1.75) + (entity.phase || 0));
+    let bob = moving ? -Math.abs(step) * (entity.kind === 'player' ? 4.2 : 3.1) : idle * 0.8;
+    let rotation = moving ? stride * 0.012 : idle * 0.004;
+    let scaleX = 1 + (moving ? Math.abs(step) * 0.012 : idle * 0.003);
+    let scaleY = 1 - (moving ? Math.abs(step) * 0.014 : idle * 0.004);
+    let shear = moving ? step * 0.018 : idle * 0.003;
+
+    if (entity.kind === 'player' && !entity.onGround) {
+      bob = 0;
+      rotation = clamp((entity.vy || 0) / 9000, -0.055, 0.055) * (entity.direction || 1);
+      scaleX = 0.985;
+      scaleY = 1.018;
+      shear = 0;
+    } else if (isDrone) {
+      bob = Math.sin(state.time * 4.8 + (entity.phase || 0)) * 2.2;
+      rotation = Math.sin(state.time * 2.4 + (entity.phase || 0)) * 0.026;
+      scaleX = 1;
+      scaleY = 1;
+      shear = 0;
+    }
+
+    const recoil = clamp(entity.recoil || 0, 0, 1);
+    const direction = entity.direction || 1;
+    rotation -= direction * recoil * (isTurret ? 0.01 : 0.028);
+    return {
+      bob,
+      rotation,
+      scaleX: scaleX - recoil * 0.012,
+      scaleY: scaleY + recoil * 0.012,
+      shear,
+      recoilX: -direction * recoil * (entity.type === 'heavy' || entity.type === 'boss' ? 8 : 5.5),
+      recoilY: recoil * 1.4,
+      moving,
+      step
+    };
+  }
+
+  function actorMuzzle(entity, shotAngle = null) {
+    const sprite = entitySpriteRect(entity);
+    const direction = entity.direction || 1;
+    const profile = entity.kind === 'player'
+      ? { edge: 0.985, y: 0.4, reach: 8 }
+      : {
+          rifle: { edge: 0.95, y: 0.42, reach: 6 },
+          runner: { edge: 0.92, y: 0.43, reach: 4 },
+          heavy: { edge: 0.95, y: 0.45, reach: 8 },
+          drone: { edge: 0.9, y: 0.56, reach: 7 },
+          turret: { edge: 0.96, y: 0.48, reach: 9 },
+          boss: { edge: 0.94, y: 0.43, reach: 11 }
+        }[entity.type] || { edge: 0.94, y: 0.43, reach: 6 };
+    const pose = actorPose(entity);
+    const angle = Number.isFinite(shotAngle) ? shotAngle : direction > 0 ? 0 : Math.PI;
+    return {
+      x: (direction > 0 ? sprite.x + sprite.w * profile.edge : sprite.x + sprite.w * (1 - profile.edge)) + pose.recoilX + Math.cos(angle) * profile.reach,
+      y: sprite.y + sprite.h * profile.y + pose.bob + pose.recoilY + Math.sin(angle) * profile.reach,
+      angle
+    };
+  }
+
+  function drawMuzzleFlash(entity) {
+    if (!entity || entity.muzzleFlash <= 0) return;
+    const muzzle = actorMuzzle(entity, entity.lastShotAngle);
+    const x = screenX(muzzle.x);
+    if (!visibleX(x, 60)) return;
+    const strength = clamp(entity.muzzleFlash / 0.07, 0, 1);
+    const length = (entity.type === 'heavy' || entity.type === 'boss' ? 34 : 25) * (0.72 + strength * 0.28);
+    ctx.save();
+    ctx.translate(x, muzzle.y);
+    ctx.rotate(muzzle.angle);
+    const glow = ctx.createRadialGradient(0, 0, 1, 0, 0, length * 1.15);
+    glow.addColorStop(0, `rgba(255,245,177,${0.75 * strength})`);
+    glow.addColorStop(0.35, `rgba(255,173,54,${0.42 * strength})`);
+    glow.addColorStop(1, 'rgba(255,111,34,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(-length, -length, length * 2, length * 2);
+    polygon([
+      [0, 0], [length * 0.55, -4.5], [length, 0], [length * 0.55, 4.5],
+      [length * 0.3, 10], [length * 0.24, 3], [length * 0.08, 0], [length * 0.24, -3], [length * 0.3, -10]
+    ], '#ffd56a');
+    polygon([[1, 0], [length * 0.68, -2], [length * 0.86, 0], [length * 0.68, 2]], '#fff3b0');
+    ctx.restore();
+  }
+
   let toastTimer = 0;
   function showToast(text, duration = 1450) {
     if (!UI.toast) return;
@@ -841,22 +947,25 @@
     if (!player || state.mode !== 'play' || state.paused || player.fireCooldown > 0 || state.respawnTimer > 0) return;
     player.fireCooldown = state.missionIndex === 0 ? 0.17 : Math.max(0.105, 0.15 - state.missionIndex * 0.003);
     const verticalInput = clamp(input.y, -1, 1);
-    const angle = Math.abs(verticalInput) > 0.28 ? (verticalInput < 0 ? -0.68 : 0.5) : 0;
+    const relativeAngle = Math.abs(verticalInput) > 0.28 ? (verticalInput < 0 ? -0.68 : 0.5) : 0;
+    const angle = player.direction > 0 ? relativeAngle : Math.PI - relativeAngle;
     const speed = 930;
-    const hitbox = entityHitbox(player);
-    const originX = player.direction > 0 ? hitbox.x + hitbox.w + 25 : hitbox.x - 25;
-    const originY = hitbox.y + hitbox.h * 0.34;
+    const muzzle = actorMuzzle(player, angle);
+    player.lastShotAngle = angle;
+    player.muzzleFlash = 0.07;
+    player.recoil = 1;
     state.projectiles.push({
       owner: 'player',
-      x: originX,
-      y: originY,
-      vx: Math.cos(angle) * speed * player.direction,
+      x: muzzle.x,
+      y: muzzle.y,
+      vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       r: 5,
       damage: 1,
       life: 1.7
     });
-    makeParticles(originX, originY, '#ffd467', 4, player.direction > 0 ? 0 : Math.PI, 145);
+    makeParticles(muzzle.x, muzzle.y, '#ffd467', 3, angle, 135);
+    makeParticles(muzzle.x - Math.cos(angle) * 11, muzzle.y + 4, '#c9943b', 2, player.direction > 0 ? -2.15 : -0.99, 82);
   }
 
   function fireEnemyWeapon(enemy) {
@@ -869,24 +978,27 @@
     }
 
     const playerBox = entityHitbox(state.player);
-    const enemyBox = entityHitbox(enemy);
-    const originX = enemyBox.x + enemyBox.w * 0.5;
-    const originY = enemyBox.y + enemyBox.h * 0.38;
+    const roughMuzzle = actorMuzzle(enemy, enemy.direction > 0 ? 0 : Math.PI);
     const targetX = playerBox.x + playerBox.w * 0.5;
     const targetY = playerBox.y + playerBox.h * 0.42;
-    const dx = targetX - originX;
-    const dy = targetY - originY;
+    const dx = targetX - roughMuzzle.x;
+    const dy = targetY - roughMuzzle.y;
     const length = Math.hypot(dx, dy) || 1;
     const speed = enemy.projectileSpeed;
     const projectileCount = enemy.type === 'boss' && state.missionIndex > 2 ? 2 : 1;
+    const baseAngle = Math.atan2(dy, dx);
+    const muzzle = actorMuzzle(enemy, baseAngle);
+    enemy.lastShotAngle = baseAngle;
+    enemy.muzzleFlash = 0.07;
+    enemy.recoil = 1;
 
     for (let index = 0; index < projectileCount; index += 1) {
       const spread = projectileCount === 1 ? 0 : (index === 0 ? -0.09 : 0.09);
-      const angle = Math.atan2(dy, dx) + spread;
+      const angle = baseAngle + spread;
       state.projectiles.push({
         owner: 'enemy',
-        x: originX,
-        y: originY,
+        x: muzzle.x,
+        y: muzzle.y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         r: enemy.type === 'heavy' || enemy.type === 'boss' ? 6 : 5,
@@ -894,6 +1006,8 @@
         life: 4.5
       });
     }
+
+    makeParticles(muzzle.x, muzzle.y, enemy.type === 'drone' ? '#a8efff' : '#ffb35d', 3, baseAngle, 120);
 
     enemy.fireCooldown = enemy.baseCooldown + random(0.15, 0.55);
   }
@@ -912,6 +1026,9 @@
   function killEnemy(enemy, projectile) {
     if (enemy.dead) return;
     enemy.hp -= projectile.damage;
+    enemy.hitFlash = 0.12;
+    enemy.recoil = Math.max(enemy.recoil || 0, 0.46);
+    if (enemy.type !== 'turret' && enemy.type !== 'drone') enemy.vx += Math.sign(projectile.vx || 1) * 26;
     makeParticles(projectile.x, projectile.y, '#ffba58', 7, 0, 180);
     if (enemy.hp > 0) return;
 
@@ -926,6 +1043,8 @@
     if (!player || player.invulnerable > 0 || state.mode !== 'play' || state.respawnTimer > 0) return;
     state.lives -= 1;
     player.invulnerable = 1.8;
+    player.hitFlash = 0.16;
+    player.recoil = 0.7;
     makeParticles(player.x + player.w * 0.5, player.y + player.h * 0.45, '#ff665c', 16, Math.PI, 280);
     updateHud();
     track('player_death', { livesLeft: state.lives, checkpoint: Math.round(state.checkpoint) });
@@ -985,6 +1104,9 @@
     player.fireCooldown = Math.max(0, player.fireCooldown - dt);
     player.invulnerable = Math.max(0, player.invulnerable - dt);
     player.coyote = Math.max(0, player.coyote - dt);
+    player.recoil = Math.max(0, player.recoil - dt * 9.5);
+    player.muzzleFlash = Math.max(0, player.muzzleFlash - dt);
+    player.hitFlash = Math.max(0, player.hitFlash - dt);
 
     if (state.respawnTimer > 0) {
       state.respawnTimer -= dt;
@@ -1016,6 +1138,17 @@
     const encounterLimit = encounter ? encounter.lockX - player.w - 20 : currentLevel().length - player.w - 35;
     player.x = clamp(player.x, 26, encounterLimit);
 
+    if (player.onGround && Math.abs(player.vx) > 18) {
+      player.walkPhase += Math.abs(player.vx) * dt * 0.035;
+      player.stepDistance += Math.abs(player.vx) * dt;
+      if (player.stepDistance >= 44) {
+        player.stepDistance %= 44;
+        makeParticles(player.x + player.w * 0.5 - player.direction * 10, player.y + player.h - 2, '#a89166', 2, -Math.PI / 2, 54);
+      }
+    } else if (player.onGround) {
+      player.stepDistance = 0;
+    }
+
     if (player.y > WORLD_HEIGHT + 160) damagePlayer();
     if (input.firing) firePlayerWeapon();
   }
@@ -1034,23 +1167,43 @@
 
   function updateEnemy(enemy, dt) {
     if (enemy.dead) return;
+    enemy.recoil = Math.max(0, (enemy.recoil || 0) - dt * 8.2);
+    enemy.muzzleFlash = Math.max(0, (enemy.muzzleFlash || 0) - dt);
+    enemy.hitFlash = Math.max(0, (enemy.hitFlash || 0) - dt);
     enemy.spawnTimer = Math.max(0, enemy.spawnTimer - dt);
     if (enemy.spawnTimer > 0 || !state.player) return;
 
     enemy.fireCooldown -= dt;
+    enemy.thinkTimer = Math.max(0, (enemy.thinkTimer || 0) - dt);
     const player = state.player;
-    const dx = player.x - enemy.x;
-    enemy.direction = dx < 0 ? -1 : 1;
+    const previousX = enemy.x;
+    const dx = player.x + player.w * 0.5 - (enemy.x + enemy.w * 0.5);
+    const distance = Math.abs(dx);
 
     if (enemy.type === 'drone') {
       enemy.x = enemy.homeX + Math.sin(state.time * 0.72 + enemy.phase) * enemy.moveRange;
       enemy.y = 315 + Math.sin(state.time * 1.55 + enemy.phase) * 56;
     } else if (enemy.type === 'runner') {
-      if (Math.abs(dx) < 620 && Math.abs(dx) > 90) enemy.x += Math.sign(dx) * enemy.speed * dt;
+      let desiredSpeed = 0;
+      if (distance < 620 && distance > 128) desiredSpeed = Math.sign(dx) * enemy.speed;
+      else if (distance < 88) desiredSpeed = -Math.sign(dx) * enemy.speed * 0.62;
+      enemy.vx = damp(enemy.vx || 0, desiredSpeed, 7.5, dt);
+      enemy.x += enemy.vx * dt;
       enemy.y = groundAt(enemy.x) - enemy.h;
     } else if (enemy.type === 'rifle' || enemy.type === 'heavy') {
-      const roam = Math.sin(state.time * 0.8 + enemy.phase) * enemy.speed * 0.32;
-      enemy.x = clamp(enemy.x + roam * dt, enemy.homeX - enemy.moveRange, enemy.homeX + enemy.moveRange);
+      const minX = enemy.homeX - enemy.moveRange;
+      const maxX = enemy.homeX + enemy.moveRange;
+      if (enemy.thinkTimer <= 0) {
+        if (random(0, 1) < 0.32) enemy.patrolDirection *= -1;
+        enemy.thinkTimer = random(0.8, 1.65);
+      }
+      let desiredSpeed = enemy.patrolDirection * enemy.speed * 0.52;
+      if (distance < 190) desiredSpeed = -Math.sign(dx) * enemy.speed * 0.72;
+      else if (distance > 270 && distance < 520) desiredSpeed = Math.sign(dx) * enemy.speed * 0.62;
+      if (enemy.x <= minX + 3) enemy.patrolDirection = 1;
+      if (enemy.x >= maxX - 3) enemy.patrolDirection = -1;
+      enemy.vx = damp(enemy.vx || 0, desiredSpeed, 5.8, dt);
+      enemy.x = clamp(enemy.x + enemy.vx * dt, minX, maxX);
       enemy.y = groundAt(enemy.x) - enemy.h;
     } else if (enemy.type === 'boss') {
       const encounter = state.encounters.find((item) => item.id === enemy.encounterId);
@@ -1060,11 +1213,19 @@
       enemy.x = damp(enemy.x, bossTarget, 0.45, dt);
       enemy.y = groundAt(enemy.x) - enemy.h;
     } else {
+      enemy.vx = 0;
       enemy.y = groundAt(enemy.x) - enemy.h;
     }
 
+    enemy.vx = (enemy.x - previousX) / Math.max(dt, 0.001);
+    if (Math.abs(enemy.vx) > 2 && enemy.type !== 'drone' && enemy.type !== 'turret') {
+      enemy.walkPhase += Math.abs(enemy.vx) * dt * (enemy.type === 'runner' ? 0.09 : enemy.type === 'heavy' || enemy.type === 'boss' ? 0.14 : 0.13);
+    }
     const fireRange = enemy.type === 'boss' ? 820 : enemy.type === 'drone' ? 720 : 670;
-    if (enemy.fireCooldown <= 0 && enemy.type !== 'runner' && Math.abs(dx) < fireRange) fireEnemyWeapon(enemy);
+    const facingDx = player.x + player.w * 0.5 - (enemy.x + enemy.w * 0.5);
+    if (Math.abs(facingDx) < fireRange + 90 || Math.abs(enemy.vx) < 2) enemy.direction = facingDx < 0 ? -1 : 1;
+    else enemy.direction = enemy.vx < 0 ? -1 : 1;
+    if (enemy.fireCooldown <= 0 && enemy.type !== 'runner' && Math.abs(facingDx) < fireRange) fireEnemyWeapon(enemy);
   }
 
   function updateProjectiles(dt) {
@@ -2177,20 +2338,20 @@
     const sprite = entitySpriteRect(entity);
     const x = sprite.x - state.camera.x;
     if (!visibleX(x, sprite.w * 1.5)) return;
+    const pose = actorPose(entity);
+    const pivotX = x + sprite.w * 0.5 + pose.recoilX;
+    const pivotY = sprite.y + sprite.h + pose.bob + pose.recoilY;
+    ctx.save();
+    ctx.translate(pivotX, pivotY);
+    ctx.rotate(pose.rotation);
+    ctx.transform(flip ? -pose.scaleX : pose.scaleX, 0, pose.shear * (flip ? -1 : 1), pose.scaleY, 0, 0);
+    if (entity.hitFlash > 0) ctx.filter = 'brightness(2.15) saturate(.35) sepia(.45)';
 
     if (!image?.complete || !image.naturalWidth) {
       ctx.fillStyle = entity.kind === 'player' ? '#e47a4d' : entity.type === 'drone' ? '#4b97a5' : '#b55b48';
-      ctx.fillRect(x, sprite.y, sprite.w, sprite.h);
-      return;
-    }
-
-    ctx.save();
-    if (flip) {
-      ctx.translate(x + sprite.w * 0.5, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(image, -sprite.w * 0.5, sprite.y, sprite.w, sprite.h);
+      ctx.fillRect(-sprite.w * 0.5, -sprite.h, sprite.w, sprite.h);
     } else {
-      ctx.drawImage(image, x, sprite.y, sprite.w, sprite.h);
+      ctx.drawImage(image, -sprite.w * 0.5, -sprite.h, sprite.w, sprite.h);
     }
     ctx.restore();
   }
@@ -2202,6 +2363,7 @@
     ctx.save();
     if (player.invulnerable > 0 && Math.floor(state.time * 13) % 2) ctx.globalAlpha = 0.42;
     drawActorImage(IMAGES.hero, player, player.direction < 0);
+    drawMuzzleFlash(player);
     ctx.restore();
   }
 
@@ -2226,6 +2388,7 @@
 
       if (enemy.type !== 'drone') drawShadow(enemy, enemy.type === 'boss' ? 0.42 : 0.29);
       drawActorImage(IMAGES[enemy.type] || IMAGES.rifle, enemy, enemy.direction > 0);
+      drawMuzzleFlash(enemy);
 
       if (enemy.type === 'boss' && IMAGES.turret?.complete) {
         ctx.drawImage(IMAGES.turret, x + sprite.w * 0.47, sprite.y + 20, sprite.w * 0.46, sprite.h * 0.27);
@@ -2251,10 +2414,22 @@
       const color = projectile.owner === 'player' ? '#ffd45d' : '#ff6964';
       const trail = projectile.owner === 'player' ? 'rgba(255,212,93,.55)' : 'rgba(255,105,100,.48)';
       line(x - projectile.vx * 0.022, projectile.y - projectile.vy * 0.022, x, projectile.y, 3, trail);
+      const angle = Math.atan2(projectile.vy, projectile.vx);
+      const length = projectile.owner === 'player' ? 17 : 13;
+      const thickness = projectile.owner === 'player' ? 4.2 : 4.8;
+      ctx.save();
+      ctx.translate(x, projectile.y);
+      ctx.rotate(angle);
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 10;
       ctx.fillStyle = color;
+      ctx.fillRect(-length * 0.55, -thickness * 0.5, length, thickness);
       ctx.beginPath();
-      ctx.arc(x, projectile.y, projectile.r, 0, TAU);
+      ctx.arc(length * 0.45, 0, thickness * 0.5, 0, TAU);
       ctx.fill();
+      ctx.fillStyle = projectile.owner === 'player' ? '#fff5b8' : '#ffd0bb';
+      ctx.fillRect(length * 0.05, -1, length * 0.43, 2);
+      ctx.restore();
     }
 
     for (const particle of state.particles) {
