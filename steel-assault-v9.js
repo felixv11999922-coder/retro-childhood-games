@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.1.0';
+  const BUILD = '9.2.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -1215,6 +1215,50 @@
     }
   }
 
+  function drawIslandRidge(x, baseY, width, height, seed = 1, alpha = 1) {
+    const ridge = [
+      [0, 0], [0.04, -0.08], [0.1, -0.13], [0.16, -0.35], [0.22, -0.29],
+      [0.28, -0.56], [0.34, -0.47], [0.41, -0.82], [0.47, -0.69],
+      [0.53, -0.96], [0.59, -0.73], [0.65, -0.79], [0.71, -0.52],
+      [0.78, -0.6], [0.84, -0.31], [0.9, -0.36], [0.96, -0.12], [1, 0]
+    ];
+    const points = ridge.map(([px, py], index) => [
+      x + px * width,
+      baseY + py * height * (0.9 + seeded(seed * 17 + index) * 0.18)
+    ]);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const body = ctx.createLinearGradient(0, baseY - height, 0, baseY);
+    body.addColorStop(0, '#285b5b');
+    body.addColorStop(0.55, '#214c4c');
+    body.addColorStop(1, '#18393d');
+    polygon(points, body);
+
+    polygon([
+      points[5], points[7], points[9],
+      [x + width * 0.49, baseY], [x + width * 0.27, baseY]
+    ], 'rgba(8,35,39,.28)');
+    polygon([
+      points[9], points[11], points[13],
+      [x + width * 0.8, baseY], [x + width * 0.53, baseY]
+    ], 'rgba(111,128,103,.16)');
+
+    for (let ledge = 0; ledge < 7; ledge += 1) {
+      const lx = x + (0.11 + ledge * 0.12) * width;
+      const ly = baseY - (0.18 + (ledge % 4) * 0.13) * height;
+      line(lx, ly, lx + width * (0.055 + (ledge % 2) * 0.025), ly - 3, 3, 'rgba(207,190,137,.13)');
+    }
+    for (let clump = 0; clump < 18; clump += 1) {
+      const cx = x + (0.04 + ((clump * 67) % 91) / 100) * width;
+      const cy = baseY - (0.12 + ((clump * 37) % 58) / 100) * height;
+      ctx.fillStyle = clump % 3 ? 'rgba(24,78,55,.62)' : 'rgba(43,101,61,.58)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 13 + clump % 4 * 4, 6 + clump % 3 * 2, -0.25, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function drawSky() {
     const palette = PALETTES[currentLevel().theme];
     const gradient = ctx.createLinearGradient(0, 0, 0, WORLD_HEIGHT);
@@ -1227,8 +1271,8 @@
     const theme = currentLevel().theme;
     const daylight = ['coast', 'river', 'waterfall', 'canyon', 'radio', 'snow'].includes(theme);
     const orbX = view.width * (theme === 'coast' ? 0.18 : 0.77);
-    const orbY = WORLD_HEIGHT * 0.19;
-    const radius = theme === 'coast' ? 57 : 38;
+    const orbY = theme === 'coast' ? WORLD_HEIGHT * 0.46 : WORLD_HEIGHT * 0.19;
+    const radius = theme === 'coast' ? 46 : 38;
     const glow = ctx.createRadialGradient(orbX, orbY, 5, orbX, orbY, radius * 3.5);
     glow.addColorStop(0, daylight ? 'rgba(255,228,151,.6)' : 'rgba(174,204,255,.28)');
     glow.addColorStop(1, 'rgba(255,255,255,0)');
@@ -1240,16 +1284,42 @@
     ctx.fill();
 
     ctx.save();
-    ctx.globalAlpha = theme === 'factory' || theme === 'reactor' ? 0.06 : 0.14;
-    ctx.fillStyle = '#fff';
     const cloudShift = state.camera.x * 0.035;
-    for (let index = -1; index < Math.ceil(view.width / 310) + 2; index += 1) {
-      const x = index * 310 - (cloudShift % 310);
-      const y = 125 + (index % 3) * 64;
-      ctx.beginPath();
-      ctx.ellipse(x, y, 86, 20, 0, 0, TAU);
-      ctx.ellipse(x + 55, y + 6, 62, 16, 0, 0, TAU);
-      ctx.fill();
+    if (theme === 'coast') {
+      const haze = ctx.createLinearGradient(0, 320, 0, 490);
+      haze.addColorStop(0, 'rgba(255,209,143,0)');
+      haze.addColorStop(0.65, 'rgba(255,205,132,.2)');
+      haze.addColorStop(1, 'rgba(255,187,111,.05)');
+      ctx.fillStyle = haze;
+      ctx.fillRect(0, 300, view.width, 205);
+      ctx.lineCap = 'round';
+      for (let index = -1; index < Math.ceil(view.width / 280) + 2; index += 1) {
+        const x = index * 280 - (cloudShift % 280);
+        const y = 92 + (index % 4) * 63;
+        ctx.strokeStyle = index % 2 ? 'rgba(255,235,203,.22)' : 'rgba(255,220,177,.16)';
+        ctx.lineWidth = 9 + (index % 3) * 4;
+        ctx.beginPath();
+        ctx.moveTo(x - 55, y + 11);
+        ctx.bezierCurveTo(x + 5, y - 18, x + 74, y + 18, x + 154, y - 3);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(205,148,107,.09)';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(x - 20, y + 27);
+        ctx.bezierCurveTo(x + 36, y + 7, x + 91, y + 34, x + 190, y + 15);
+        ctx.stroke();
+      }
+    } else {
+      ctx.globalAlpha = theme === 'factory' || theme === 'reactor' ? 0.06 : 0.14;
+      ctx.fillStyle = '#fff';
+      for (let index = -1; index < Math.ceil(view.width / 310) + 2; index += 1) {
+        const x = index * 310 - (cloudShift % 310);
+        const y = 125 + (index % 3) * 64;
+        ctx.beginPath();
+        ctx.ellipse(x, y, 86, 20, 0, 0, TAU);
+        ctx.ellipse(x + 55, y + 6, 62, 16, 0, 0, TAU);
+        ctx.fill();
+      }
     }
     ctx.restore();
   }
@@ -1265,12 +1335,14 @@
       for (let index = Math.floor(farShift / farStep) - 2; index < Math.ceil((farShift + view.width) / farStep) + 3; index += 1) {
         const x = index * farStep - farShift;
         const height = 190 + seeded(index + currentLevel().id) * 135;
-        drawMountain(x, 520, 470, height, theme === 'snow' ? 'rgba(66,91,116,.82)' : palette[2], theme === 'snow' ? 'rgba(230,243,251,.72)' : null);
+        if (theme === 'coast') drawIslandRidge(x, 515, 505, height * 0.92, index + 31, 0.86);
+        else drawMountain(x, 520, 470, height, theme === 'snow' ? 'rgba(66,91,116,.82)' : palette[2], theme === 'snow' ? 'rgba(230,243,251,.72)' : null);
       }
       const midStep = 390;
       for (let index = Math.floor(midShift / midStep) - 2; index < Math.ceil((midShift + view.width) / midStep) + 3; index += 1) {
         const x = index * midStep - midShift;
-        drawMountain(x, 590, 510, 155 + seeded(index * 2 + 7) * 95, theme === 'canyon' || theme === 'radio' ? 'rgba(92,48,39,.78)' : 'rgba(17,48,57,.58)');
+        if (theme === 'coast') drawIslandRidge(x, 575, 540, 165 + seeded(index * 2 + 7) * 105, index + 83, 0.62);
+        else drawMountain(x, 590, 510, 155 + seeded(index * 2 + 7) * 95, theme === 'canyon' || theme === 'radio' ? 'rgba(92,48,39,.78)' : 'rgba(17,48,57,.58)');
       }
     }
 
@@ -1382,9 +1454,53 @@
   function drawPalmAt(x, baseY, scale = 1, alpha = 1) {
     ctx.save();
     ctx.globalAlpha = alpha;
-    line(x, baseY, x - 7 * scale, baseY - 158 * scale, 11 * scale, '#5c4934');
-    for (let angle = -1.32; angle <= 1.32; angle += 0.33) {
-      line(x - 7 * scale, baseY - 158 * scale, x + Math.sin(angle) * 88 * scale, baseY - 158 * scale - Math.cos(angle) * 37 * scale, 9 * scale, '#1f7047');
+    const crownX = x - 17 * scale;
+    const crownY = baseY - 176 * scale;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#3a2b20';
+    ctx.lineWidth = 17 * scale;
+    ctx.beginPath();
+    ctx.moveTo(x, baseY);
+    ctx.bezierCurveTo(x + 4 * scale, baseY - 63 * scale, x - 8 * scale, baseY - 126 * scale, crownX, crownY);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(189,139,78,.52)';
+    ctx.lineWidth = 5 * scale;
+    ctx.beginPath();
+    ctx.moveTo(x - 3 * scale, baseY - 9 * scale);
+    ctx.bezierCurveTo(x, baseY - 69 * scale, x - 13 * scale, baseY - 129 * scale, crownX - 3 * scale, crownY + 8 * scale);
+    ctx.stroke();
+    for (let band = 0; band < 7; band += 1) {
+      const by = baseY - (25 + band * 21) * scale;
+      line(x - 7 * scale - band * 1.2 * scale, by, x + 7 * scale - band * 2.2 * scale, by - 4 * scale, 2 * scale, 'rgba(34,28,23,.62)');
+    }
+
+    const fronds = [
+      [-112, 10, -62, -14], [-97, -24, -57, -42], [-70, -58, -35, -65],
+      [-28, -76, -12, -72], [28, -72, 18, -66], [73, -50, 47, -54],
+      [108, -17, 67, -27], [116, 20, 68, 1], [72, 48, 49, 24], [-65, 42, -42, 18]
+    ];
+    for (let index = 0; index < fronds.length; index += 1) {
+      const [endX, endY, controlX, controlY] = fronds[index];
+      ctx.strokeStyle = index % 3 ? '#185c39' : '#277347';
+      ctx.lineWidth = 7 * scale;
+      ctx.beginPath();
+      ctx.moveTo(crownX, crownY);
+      ctx.quadraticCurveTo(crownX + controlX * scale, crownY + controlY * scale, crownX + endX * scale, crownY + endY * scale);
+      ctx.stroke();
+      for (let leaf = 2; leaf < 8; leaf += 1) {
+        const t = leaf / 9;
+        const oneMinus = 1 - t;
+        const px = oneMinus * oneMinus * crownX + 2 * oneMinus * t * (crownX + controlX * scale) + t * t * (crownX + endX * scale);
+        const py = oneMinus * oneMinus * crownY + 2 * oneMinus * t * (crownY + controlY * scale) + t * t * (crownY + endY * scale);
+        const side = index % 2 ? 1 : -1;
+        line(px, py, px + side * 15 * scale, py + (4 + leaf) * scale, 4 * scale, index % 3 ? '#1d6840' : '#2b7d49');
+      }
+    }
+    ctx.fillStyle = '#4b3625';
+    for (let nut = 0; nut < 4; nut += 1) {
+      ctx.beginPath();
+      ctx.arc(crownX + (nut - 1.5) * 7 * scale, crownY + (7 + nut % 2 * 5) * scale, 6 * scale, 0, TAU);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -1394,35 +1510,55 @@
     const height = 305 * scale;
     ctx.save();
     ctx.globalAlpha = alpha;
+    const rock = ctx.createLinearGradient(x, baseY - height, x + width, baseY);
+    rock.addColorStop(0, '#6d6955');
+    rock.addColorStop(0.42, '#4e5547');
+    rock.addColorStop(1, '#283d36');
     polygon([
       [x, baseY], [x + 16 * scale, baseY - 92 * scale], [x + 68 * scale, baseY - 132 * scale],
       [x + 93 * scale, baseY - 224 * scale], [x + 153 * scale, baseY - height],
       [x + 207 * scale, baseY - 250 * scale], [x + 252 * scale, baseY - 278 * scale],
       [x + 305 * scale, baseY - 186 * scale], [x + 361 * scale, baseY - 154 * scale],
       [x + width, baseY - 64 * scale], [x + width, baseY]
-    ], '#35443d');
+    ], rock);
     polygon([
       [x + 92 * scale, baseY - 215 * scale], [x + 153 * scale, baseY - height],
       [x + 207 * scale, baseY - 250 * scale], [x + 178 * scale, baseY - 82 * scale],
       [x + 112 * scale, baseY]
-    ], '#5b594b');
+    ], 'rgba(139,123,88,.3)');
     polygon([
       [x + 250 * scale, baseY - 270 * scale], [x + 305 * scale, baseY - 186 * scale],
       [x + 361 * scale, baseY - 154 * scale], [x + 338 * scale, baseY],
       [x + 260 * scale, baseY]
-    ], '#464d43');
-    for (let ledge = 0; ledge < 5; ledge += 1) {
-      const lx = x + (48 + ledge * 67) * scale;
-      const ly = baseY - (52 + (ledge % 3) * 58) * scale;
-      line(lx, ly, lx + (52 + (ledge % 2) * 25) * scale, ly - 8 * scale, 5 * scale, 'rgba(190,169,119,.2)');
+    ], 'rgba(21,49,40,.42)');
+    polygon([
+      [x + 12 * scale, baseY - 88 * scale], [x + 66 * scale, baseY - 132 * scale],
+      [x + 94 * scale, baseY - 211 * scale], [x + 116 * scale, baseY - 92 * scale],
+      [x + 74 * scale, baseY]
+    ], 'rgba(25,42,37,.34)');
+    for (let ledge = 0; ledge < 9; ledge += 1) {
+      const lx = x + (42 + ledge * 40) * scale;
+      const ly = baseY - (42 + (ledge % 4) * 55) * scale;
+      line(lx, ly, lx + (35 + (ledge % 3) * 18) * scale, ly - 8 * scale, 4 * scale, 'rgba(222,197,139,.23)');
+      line(lx + 8 * scale, ly + 4 * scale, lx - 2 * scale, ly + 35 * scale, 2 * scale, 'rgba(20,35,31,.45)');
     }
-    for (let clump = 0; clump < 14; clump += 1) {
+    for (let clump = 0; clump < 22; clump += 1) {
       const cx = x + (28 + (clump * 79) % 370) * scale;
       const cy = baseY - (52 + (clump * 47) % 245) * scale;
-      ctx.fillStyle = clump % 3 ? '#24533a' : '#377047';
+      ctx.fillStyle = clump % 3 ? '#1d5938' : '#377247';
       ctx.beginPath();
       ctx.ellipse(cx, cy, (18 + clump % 4 * 4) * scale, (9 + clump % 3 * 3) * scale, -0.25, 0, TAU);
       ctx.fill();
+    }
+    for (let vine = 0; vine < 5; vine += 1) {
+      const vx = x + (92 + vine * 63) * scale;
+      const vy = baseY - (230 - vine % 2 * 45) * scale;
+      ctx.strokeStyle = 'rgba(39,100,53,.72)';
+      ctx.lineWidth = 3 * scale;
+      ctx.beginPath();
+      ctx.moveTo(vx, vy);
+      ctx.bezierCurveTo(vx - 20 * scale, vy + 42 * scale, vx + 18 * scale, vy + 77 * scale, vx - 5 * scale, vy + 118 * scale);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -1441,6 +1577,20 @@
         line(stemX, stemY, stemX - reach, stemY - 7 * scale, 5 * scale, '#357e49');
         line(stemX, stemY, stemX + reach, stemY - 9 * scale, 5 * scale, '#28643e');
       }
+    }
+    ctx.restore();
+  }
+
+  function drawConcreteTexture(x, y, width, height, scale = 1, seed = 1) {
+    ctx.save();
+    for (let speck = 0; speck < 38; speck += 1) {
+      const px = x + seeded(seed * 53 + speck * 7) * width;
+      const py = y + seeded(seed * 71 + speck * 11) * height;
+      const radius = (1.3 + seeded(seed * 29 + speck) * 2.8) * scale;
+      ctx.fillStyle = speck % 3 ? 'rgba(20,28,26,.18)' : 'rgba(221,207,167,.1)';
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, TAU);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -1464,84 +1614,183 @@
     const width = 142 * scale;
     const cabinBottom = baseY - 205 * scale;
     const cabinTop = cabinBottom - 92 * scale;
-    line(x + 18 * scale, baseY, x + 34 * scale, cabinBottom, 10 * scale, '#3b3328');
-    line(x + width - 18 * scale, baseY, x + width - 34 * scale, cabinBottom, 10 * scale, '#3b3328');
-    line(x + 18 * scale, baseY - 18 * scale, x + width - 34 * scale, cabinBottom, 5 * scale, '#66513a');
-    line(x + width - 18 * scale, baseY - 18 * scale, x + 34 * scale, cabinBottom, 5 * scale, '#66513a');
-    ctx.fillStyle = '#514536';
+    line(x + 18 * scale, baseY, x + 34 * scale, cabinBottom, 12 * scale, '#302b23');
+    line(x + width - 18 * scale, baseY, x + width - 34 * scale, cabinBottom, 12 * scale, '#302b23');
+    for (let brace = 0; brace < 3; brace += 1) {
+      const y0 = baseY - brace * 63 * scale;
+      const y1 = y0 - 58 * scale;
+      line(x + 20 * scale, y0, x + width - 28 * scale, y1, 5 * scale, '#6b553a');
+      line(x + width - 20 * scale, y0, x + 28 * scale, y1, 5 * scale, '#493b2c');
+      line(x + 19 * scale, y1, x + width - 19 * scale, y1, 4 * scale, '#796044');
+    }
+    const cabin = ctx.createLinearGradient(x, cabinTop, x + width, cabinBottom);
+    cabin.addColorStop(0, '#756146');
+    cabin.addColorStop(0.52, '#514536');
+    cabin.addColorStop(1, '#302c27');
+    ctx.fillStyle = cabin;
     ctx.fillRect(x + 12 * scale, cabinTop, width - 24 * scale, 92 * scale);
+    for (let board = 1; board < 5; board += 1) line(x + 12 * scale, cabinTop + board * 18 * scale, x + width - 12 * scale, cabinTop + board * 18 * scale, 2 * scale, 'rgba(31,25,20,.38)');
     ctx.fillStyle = '#182021';
     ctx.fillRect(x + 28 * scale, cabinTop + 21 * scale, 36 * scale, 35 * scale);
     ctx.fillRect(x + 79 * scale, cabinTop + 21 * scale, 34 * scale, 35 * scale);
+    ctx.fillStyle = 'rgba(242,182,90,.2)';
+    ctx.fillRect(x + 83 * scale, cabinTop + 25 * scale, 26 * scale, 8 * scale);
     ctx.fillStyle = '#78664b';
     ctx.fillRect(x, cabinBottom - 10 * scale, width, 16 * scale);
+    line(x - 7 * scale, cabinBottom + 9 * scale, x + width + 8 * scale, cabinBottom + 9 * scale, 5 * scale, '#332b22');
+    for (let rail = 0; rail < 7; rail += 1) line(x + rail * 23 * scale, cabinBottom + 7 * scale, x + rail * 23 * scale, cabinBottom - 35 * scale, 3 * scale, '#4a3b2a');
+    line(x - 4 * scale, cabinBottom - 35 * scale, x + width + 4 * scale, cabinBottom - 35 * scale, 4 * scale, '#5e4a34');
     polygon([
       [x - 18 * scale, cabinTop], [x + 20 * scale, cabinTop - 25 * scale],
       [x + width - 10 * scale, cabinTop - 25 * scale], [x + width + 19 * scale, cabinTop]
-    ], '#34342e');
+    ], '#262923');
+    polygon([
+      [x - 11 * scale, cabinTop - 2 * scale], [x + 22 * scale, cabinTop - 20 * scale],
+      [x + width - 14 * scale, cabinTop - 20 * scale], [x + width - 33 * scale, cabinTop - 10 * scale]
+    ], 'rgba(154,139,93,.2)');
+    ctx.strokeStyle = 'rgba(25,29,27,.7)';
+    ctx.lineWidth = 2 * scale;
+    ctx.beginPath();
+    ctx.moveTo(x + width - 4 * scale, cabinTop - 10 * scale);
+    ctx.bezierCurveTo(x + width + 80 * scale, cabinTop + 23 * scale, x + width + 110 * scale, cabinBottom + 72 * scale, x + width + 135 * scale, cabinBottom + 95 * scale);
+    ctx.stroke();
   }
 
   function drawFortressAt(x, baseY, scale = 1, label = 'A-01') {
     const width = 332 * scale;
     const lowerTop = baseY - 184 * scale;
     const upperTop = baseY - 292 * scale;
+    ctx.save();
     polygon([
       [x - 28 * scale, baseY], [x - 8 * scale, baseY - 42 * scale],
       [x + width + 16 * scale, baseY - 30 * scale], [x + width + 36 * scale, baseY]
-    ], '#2a3331');
-    ctx.fillStyle = '#424b46';
+    ], '#202b29');
+    const lowerWall = ctx.createLinearGradient(x, lowerTop, x + width, baseY);
+    lowerWall.addColorStop(0, '#5c6157');
+    lowerWall.addColorStop(0.55, '#424b46');
+    lowerWall.addColorStop(1, '#2d3936');
+    ctx.fillStyle = lowerWall;
     ctx.fillRect(x, lowerTop, width, 184 * scale);
-    ctx.fillStyle = '#4c5650';
+    polygon([
+      [x + width, lowerTop], [x + width + 28 * scale, lowerTop + 19 * scale],
+      [x + width + 28 * scale, baseY - 12 * scale], [x + width, baseY]
+    ], '#283431');
+    const upperWall = ctx.createLinearGradient(x + 50 * scale, upperTop, x + 266 * scale, lowerTop);
+    upperWall.addColorStop(0, '#6e7165');
+    upperWall.addColorStop(0.45, '#515a52');
+    upperWall.addColorStop(1, '#37433f');
+    ctx.fillStyle = upperWall;
     ctx.fillRect(x + 50 * scale, upperTop, 216 * scale, 108 * scale);
     ctx.fillStyle = '#697067';
     ctx.fillRect(x - 15 * scale, lowerTop - 18 * scale, width + 30 * scale, 22 * scale);
     ctx.fillRect(x + 35 * scale, upperTop - 17 * scale, 246 * scale, 20 * scale);
+    ctx.fillStyle = 'rgba(18,24,23,.42)';
+    ctx.fillRect(x - 7 * scale, lowerTop + 4 * scale, width + 14 * scale, 13 * scale);
+    ctx.fillRect(x + 48 * scale, upperTop + 3 * scale, 220 * scale, 10 * scale);
     for (let notch = 0; notch < 7; notch += 1) {
       ctx.fillStyle = notch % 2 ? '#525b55' : '#616961';
       ctx.fillRect(x - 10 * scale + notch * 52 * scale, lowerTop - 36 * scale, 32 * scale, 20 * scale);
     }
-    ctx.fillStyle = '#11191b';
-    ctx.fillRect(x + 29 * scale, lowerTop + 44 * scale, 119 * scale, 57 * scale);
-    ctx.fillRect(x + 91 * scale, upperTop + 31 * scale, 101 * scale, 43 * scale);
+    for (let row = 0; row < 6; row += 1) {
+      const brickY = lowerTop + row * 31 * scale;
+      const offset = row % 2 ? -22 * scale : 0;
+      for (let column = 0; column < 7; column += 1) {
+        const brickX = x + offset + column * 55 * scale;
+        ctx.strokeStyle = 'rgba(23,30,28,.3)';
+        ctx.lineWidth = 1.5 * scale;
+        ctx.strokeRect(brickX, brickY, 53 * scale, 29 * scale);
+      }
+    }
+    drawConcreteTexture(x, lowerTop, width, 184 * scale, scale, Math.round(x / 100) + 3);
+    drawConcreteTexture(x + 50 * scale, upperTop, 216 * scale, 108 * scale, scale, Math.round(x / 100) + 9);
+
+    ctx.fillStyle = '#0c1416';
+    ctx.fillRect(x + 22 * scale, lowerTop + 37 * scale, 135 * scale, 73 * scale);
+    ctx.fillStyle = '#25302f';
+    ctx.fillRect(x + 31 * scale, lowerTop + 47 * scale, 117 * scale, 54 * scale);
+    const aperture = ctx.createLinearGradient(x + 31 * scale, 0, x + 148 * scale, 0);
+    aperture.addColorStop(0, '#090f11');
+    aperture.addColorStop(0.72, '#121b1c');
+    aperture.addColorStop(1, 'rgba(238,154,62,.16)');
+    ctx.fillStyle = aperture;
+    ctx.fillRect(x + 38 * scale, lowerTop + 53 * scale, 104 * scale, 42 * scale);
+    ctx.fillStyle = '#101719';
+    ctx.fillRect(x + 81 * scale, upperTop + 24 * scale, 120 * scale, 56 * scale);
+    ctx.fillStyle = '#202b2b';
+    ctx.fillRect(x + 91 * scale, upperTop + 33 * scale, 101 * scale, 38 * scale);
+    ctx.fillStyle = 'rgba(243,176,81,.2)';
+    ctx.fillRect(x + 101 * scale, upperTop + 38 * scale, 73 * scale, 7 * scale);
     ctx.fillStyle = '#1b2222';
-    ctx.fillRect(x + 251 * scale, lowerTop + 57 * scale, 58 * scale, 127 * scale);
-    ctx.fillStyle = 'rgba(239,177,73,.55)';
-    ctx.fillRect(x + 267 * scale, lowerTop + 77 * scale, 25 * scale, 10 * scale);
-    for (let row = 0; row < 4; row += 1) {
-      const y = lowerTop + 12 * scale + row * 47 * scale;
-      line(x, y, x + width, y, 2 * scale, 'rgba(22,28,27,.48)');
-    }
-    for (let column = 1; column < 6; column += 1) {
-      const cx = x + column * 56 * scale;
-      line(cx, lowerTop, cx, baseY, 2 * scale, 'rgba(22,28,27,.38)');
-    }
-    const cracks = [[42, 24, 61, 53], [178, 9, 164, 37], [222, 117, 239, 146], [83, 132, 65, 156]];
+    ctx.fillRect(x + 247 * scale, lowerTop + 50 * scale, 67 * scale, 134 * scale);
+    ctx.fillStyle = '#3d4744';
+    ctx.fillRect(x + 254 * scale, lowerTop + 58 * scale, 53 * scale, 126 * scale);
+    for (let bar = 1; bar < 4; bar += 1) line(x + 254 * scale, lowerTop + (58 + bar * 28) * scale, x + 307 * scale, lowerTop + (58 + bar * 28) * scale, 2 * scale, 'rgba(17,23,22,.55)');
+    ctx.fillStyle = 'rgba(247,181,77,.75)';
+    ctx.fillRect(x + 271 * scale, lowerTop + 76 * scale, 19 * scale, 9 * scale);
+
+    const cracks = [[44, 25, 62, 52], [182, 12, 164, 39], [220, 119, 240, 148], [82, 134, 63, 158], [287, 19, 276, 41]];
     for (const crack of cracks) {
       line(x + crack[0] * scale, lowerTop + crack[1] * scale, x + crack[2] * scale, lowerTop + crack[3] * scale, 2 * scale, 'rgba(21,27,26,.55)');
     }
-    ctx.fillStyle = '#3d7547';
+    ctx.fillStyle = '#397044';
     for (let patch = 0; patch < 9; patch += 1) {
       const px = x + (18 + patch * 37) * scale;
       const py = patch % 2 ? lowerTop - 5 * scale : baseY - 17 * scale;
       ctx.fillRect(px, py, (18 + patch % 3 * 9) * scale, 8 * scale);
     }
+    for (let vine = 0; vine < 3; vine += 1) {
+      const vx = x + (62 + vine * 111) * scale;
+      const vy = upperTop + (vine % 2) * 34 * scale;
+      ctx.strokeStyle = vine % 2 ? '#2f6e40' : '#3b7d47';
+      ctx.lineWidth = 3 * scale;
+      ctx.beginPath();
+      ctx.moveTo(vx, vy);
+      ctx.bezierCurveTo(vx - 22 * scale, vy + 41 * scale, vx + 18 * scale, vy + 77 * scale, vx - 7 * scale, vy + 125 * scale);
+      ctx.stroke();
+      for (let leaf = 1; leaf < 5; leaf += 1) {
+        ctx.fillStyle = leaf % 2 ? '#346f42' : '#2b613b';
+        ctx.beginPath();
+        ctx.ellipse(vx + (leaf % 2 ? -9 : 7) * scale, vy + leaf * 24 * scale, 8 * scale, 4 * scale, leaf % 2 ? -0.5 : 0.5, 0, TAU);
+        ctx.fill();
+      }
+    }
     drawSandbagsAt(x + 160 * scale, upperTop - 14 * scale, scale * 0.62);
+    for (let rubble = 0; rubble < 11; rubble += 1) {
+      const rx = x - 18 * scale + rubble * 34 * scale;
+      const ry = baseY - (5 + rubble % 3 * 3) * scale;
+      ctx.fillStyle = rubble % 2 ? '#4a4b42' : '#5b584a';
+      ctx.beginPath();
+      ctx.ellipse(rx, ry, (12 + rubble % 3 * 4) * scale, (7 + rubble % 2 * 3) * scale, -0.2, 0, TAU);
+      ctx.fill();
+    }
     ctx.fillStyle = 'rgba(224,216,183,.68)';
     ctx.font = `900 ${Math.max(11, 17 * scale)}px system-ui`;
     ctx.fillText(label, x + 17 * scale, baseY - 28 * scale);
+    ctx.restore();
   }
 
   function drawBunkerAt(x, baseY, scale = 1, label = '') {
     const width = 250 * scale;
     const height = 205 * scale;
-    ctx.fillStyle = '#3b4848';
+    const wall = ctx.createLinearGradient(x, baseY - height, x + width, baseY);
+    wall.addColorStop(0, '#60665c');
+    wall.addColorStop(0.5, '#424c48');
+    wall.addColorStop(1, '#293532');
+    ctx.fillStyle = wall;
     ctx.fillRect(x, baseY - height, width, height);
-    polygon([[x - 20 * scale, baseY - height], [x + 38 * scale, baseY - height - 42 * scale], [x + width - 30 * scale, baseY - height - 42 * scale], [x + width + 18 * scale, baseY - height]], '#55605b');
+    polygon([[x - 20 * scale, baseY - height], [x + 38 * scale, baseY - height - 42 * scale], [x + width - 30 * scale, baseY - height - 42 * scale], [x + width + 18 * scale, baseY - height]], '#677066');
+    ctx.fillStyle = 'rgba(20,27,26,.4)';
+    ctx.fillRect(x - 5 * scale, baseY - height + 4 * scale, width + 10 * scale, 11 * scale);
     ctx.fillStyle = '#151d20';
-    ctx.fillRect(x + 32 * scale, baseY - height + 53 * scale, 108 * scale, 57 * scale);
+    ctx.fillRect(x + 23 * scale, baseY - height + 46 * scale, 127 * scale, 70 * scale);
+    ctx.fillStyle = '#0a1113';
+    ctx.fillRect(x + 33 * scale, baseY - height + 57 * scale, 108 * scale, 48 * scale);
+    ctx.fillStyle = '#151d20';
     ctx.fillRect(x + 176 * scale, baseY - height + 35 * scale, 43 * scale, 90 * scale);
-    ctx.fillStyle = 'rgba(255,255,255,.08)';
-    for (let beam = x + 45 * scale; beam < x + width; beam += 48 * scale) ctx.fillRect(beam, baseY - height, 3 * scale, height);
+    drawConcreteTexture(x, baseY - height, width, height, scale, Math.round(x / 90) + 14);
+    for (let row = 1; row < 5; row += 1) line(x, baseY - height + row * 40 * scale, x + width, baseY - height + row * 40 * scale, 2 * scale, 'rgba(19,27,25,.3)');
+    ctx.fillStyle = '#3d7948';
+    for (let moss = 0; moss < 6; moss += 1) ctx.fillRect(x + (12 + moss * 42) * scale, baseY - height - (moss % 2 ? 1 : 6) * scale, (18 + moss % 3 * 8) * scale, 7 * scale);
     ctx.fillStyle = '#d3a745';
     ctx.fillRect(x + width - 37 * scale, baseY - height + 34 * scale, 14 * scale, 18 * scale);
     if (label) {
@@ -1552,35 +1801,67 @@
   }
 
   function drawTowerAt(x, baseY, scale = 1) {
-    const top = baseY - 255 * scale;
-    line(x, baseY, x, top, 7 * scale, '#202a30');
-    line(x - 55 * scale, baseY, x, top, 6 * scale, '#202a30');
-    line(x + 55 * scale, baseY, x, top, 6 * scale, '#202a30');
-    for (let y = baseY - 34 * scale; y > top; y -= 34 * scale) line(x - 48 * scale, y, x + 48 * scale, y, 4 * scale, '#29353b');
-    ctx.fillStyle = '#252f35';
-    ctx.fillRect(x - 72 * scale, top - 11 * scale, 144 * scale, 24 * scale);
+    const top = baseY - 278 * scale;
+    line(x - 59 * scale, baseY, x - 17 * scale, top, 8 * scale, '#1d292e');
+    line(x + 59 * scale, baseY, x + 17 * scale, top, 8 * scale, '#1d292e');
+    line(x, baseY, x, top - 76 * scale, 4 * scale, '#35434a');
+    for (let level = 0; level < 7; level += 1) {
+      const y0 = baseY - level * 39 * scale;
+      const y1 = y0 - 37 * scale;
+      const half0 = (57 - level * 5.7) * scale;
+      const half1 = (51 - level * 5.7) * scale;
+      line(x - half0, y0, x + half1, y1, 4 * scale, '#34434a');
+      line(x + half0, y0, x - half1, y1, 4 * scale, '#25343a');
+      line(x - half0, y0, x + half0, y0, 3 * scale, '#526069');
+    }
+    ctx.fillStyle = '#303b40';
+    ctx.fillRect(x - 68 * scale, top - 7 * scale, 136 * scale, 17 * scale);
+    line(x - 67 * scale, top - 11 * scale, x + 67 * scale, top - 11 * scale, 4 * scale, '#6e7778');
+    line(x, top, x, top - 83 * scale, 5 * scale, '#2f3b41');
+    line(x - 20 * scale, top - 35 * scale, x + 20 * scale, top - 35 * scale, 3 * scale, '#58636a');
+    ctx.strokeStyle = 'rgba(29,38,39,.62)';
+    ctx.lineWidth = 2 * scale;
+    ctx.beginPath();
+    ctx.moveTo(x - 8 * scale, top - 60 * scale);
+    ctx.bezierCurveTo(x - 92 * scale, top + 8 * scale, x - 120 * scale, baseY - 55 * scale, x - 145 * scale, baseY);
+    ctx.moveTo(x + 8 * scale, top - 60 * scale);
+    ctx.bezierCurveTo(x + 91 * scale, top + 15 * scale, x + 118 * scale, baseY - 55 * scale, x + 145 * scale, baseY);
+    ctx.stroke();
     ctx.fillStyle = '#ff4f49';
     ctx.beginPath();
-    ctx.arc(x, top - 24 * scale, 6 * scale, 0, TAU);
+    ctx.arc(x, top - 87 * scale, 6 * scale, 0, TAU);
     ctx.fill();
+    const glow = ctx.createRadialGradient(x, top - 87 * scale, 1, x, top - 87 * scale, 20 * scale);
+    glow.addColorStop(0, 'rgba(255,76,67,.4)');
+    glow.addColorStop(1, 'rgba(255,76,67,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 21 * scale, top - 108 * scale, 42 * scale, 42 * scale);
   }
 
   function drawAntennaAt(x, baseY, scale = 1) {
     const top = baseY - 215 * scale;
-    line(x, baseY, x, top, 6 * scale, '#273139');
+    line(x - 21 * scale, baseY, x, top, 6 * scale, '#273139');
+    line(x + 21 * scale, baseY, x, top, 6 * scale, '#202b31');
     for (let y = baseY - 40 * scale; y > top + 12 * scale; y -= 34 * scale) {
       line(x - 28 * scale, y, x + 28 * scale, y, 3 * scale, '#303b42');
       line(x - 28 * scale, y, x, y - 30 * scale, 3 * scale, '#303b42');
       line(x + 28 * scale, y, x, y - 30 * scale, 3 * scale, '#303b42');
     }
-    ctx.strokeStyle = '#78858b';
-    ctx.lineWidth = 5 * scale;
+    ctx.fillStyle = '#56646a';
     ctx.beginPath();
-    ctx.arc(x, top + 18 * scale, 38 * scale, -1.2, 1.2);
+    ctx.ellipse(x + 29 * scale, top + 45 * scale, 39 * scale, 17 * scale, -0.65, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#909b9c';
+    ctx.lineWidth = 4 * scale;
+    ctx.beginPath();
+    ctx.arc(x + 7 * scale, top + 39 * scale, 38 * scale, -1.28, 1.05);
     ctx.stroke();
+    line(x + 7 * scale, top + 39 * scale, x + 54 * scale, top + 7 * scale, 3 * scale, '#9aa4a3');
+    line(x, top, x, top - 47 * scale, 4 * scale, '#2c383e');
+    line(x - 15 * scale, top - 22 * scale, x + 15 * scale, top - 22 * scale, 3 * scale, '#536067');
     ctx.fillStyle = '#ef514c';
     ctx.beginPath();
-    ctx.arc(x, top - 4 * scale, 5 * scale, 0, TAU);
+    ctx.arc(x, top - 51 * scale, 5 * scale, 0, TAU);
     ctx.fill();
   }
 
@@ -2008,6 +2289,19 @@
 
   function drawWeather() {
     const theme = currentLevel().theme;
+    if (theme === 'coast') {
+      ctx.save();
+      for (let mote = 0; mote < 34; mote += 1) {
+        const x = (mote * 173 + state.time * (4 + mote % 5)) % (view.width + 80) - 40;
+        const y = 285 + ((mote * 67) % 365);
+        ctx.globalAlpha = 0.05 + (mote % 4) * 0.025;
+        ctx.fillStyle = mote % 3 ? '#ffe1a3' : '#d8f1dc';
+        ctx.beginPath();
+        ctx.arc(x, y, 1 + mote % 3, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
     if (theme === 'factory' || theme === 'city' || theme === 'reactor') {
       ctx.save();
       ctx.globalAlpha = 0.2;
