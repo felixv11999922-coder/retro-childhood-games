@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.2.0';
+  const BUILD = '9.2.1';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -1271,7 +1271,7 @@
     const theme = currentLevel().theme;
     const daylight = ['coast', 'river', 'waterfall', 'canyon', 'radio', 'snow'].includes(theme);
     const orbX = view.width * (theme === 'coast' ? 0.18 : 0.77);
-    const orbY = theme === 'coast' ? WORLD_HEIGHT * 0.46 : WORLD_HEIGHT * 0.19;
+    const orbY = theme === 'coast' ? WORLD_HEIGHT * 0.39 : WORLD_HEIGHT * 0.19;
     const radius = theme === 'coast' ? 46 : 38;
     const glow = ctx.createRadialGradient(orbX, orbY, 5, orbX, orbY, radius * 3.5);
     glow.addColorStop(0, daylight ? 'rgba(255,228,151,.6)' : 'rgba(174,204,255,.28)');
