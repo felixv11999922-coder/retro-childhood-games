@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.0.0';
+  const BUILD = '9.1.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -98,29 +98,42 @@
   ];
 
   const MISSION_ONE_DECOR = [
-    { type: 'wreck', x: 260, scale: 0.88 },
-    { type: 'palm', x: 430, scale: 1.05 },
-    { type: 'crates', x: 590, scale: 0.9 },
-    { type: 'bunker', x: 770, scale: 1.1, label: 'A-01' },
-    { type: 'sandbags', x: 1110, scale: 1.05 },
-    { type: 'wall', x: 1290, scale: 1.15 },
-    { type: 'crates', x: 1460, scale: 1.08 },
-    { type: 'spotlight', x: 1650, scale: 1 },
-    { type: 'bunker', x: 1810, scale: 0.92, label: 'ДВОР' },
-    { type: 'tower', x: 2080, scale: 1.15 },
-    { type: 'antenna', x: 2280, scale: 1.12 },
-    { type: 'sandbags', x: 2470, scale: 1.12 },
-    { type: 'wall', x: 2700, scale: 1.22 },
-    { type: 'bunker', x: 2890, scale: 1.08, label: 'B-02' },
-    { type: 'crates', x: 3210, scale: 1.04 },
-    { type: 'truck', x: 3420, scale: 1.08 },
-    { type: 'radar', x: 3700, scale: 1.18 },
-    { type: 'sandbags', x: 3920, scale: 1.2 },
-    { type: 'bunker', x: 4130, scale: 1.2, label: 'HQ' },
-    { type: 'antenna', x: 4430, scale: 1.2 },
-    { type: 'wall', x: 4620, scale: 1.15 },
-    { type: 'command', x: 4820, scale: 1.25 },
-    { type: 'spotlight', x: 5120, scale: 1.1 }
+    { type: 'growth', x: 12, scale: 1.18 },
+    { type: 'palm', x: 74, scale: 1.38 },
+    { type: 'crates', x: 245, scale: 0.58 },
+    { type: 'wreck', x: 315, scale: 0.58 },
+    { type: 'flag', x: 390, scale: 0.92 },
+    { type: 'fortress', x: 485, scale: 0.88, label: 'A-01' },
+    { type: 'antenna', x: 735, scale: 0.92 },
+    { type: 'watchtower', x: 855, scale: 0.9 },
+    { type: 'growth', x: 910, scale: 0.84 },
+    { type: 'sandbags', x: 1050, scale: 1.05 },
+    { type: 'wall', x: 1215, scale: 1.08 },
+    { type: 'crates', x: 1390, scale: 0.92 },
+    { type: 'palm', x: 1510, scale: 1.08 },
+    { type: 'bunker', x: 1600, scale: 0.94, label: 'ДВОР' },
+    { type: 'spotlight', x: 1815, scale: 0.94 },
+    { type: 'fortress', x: 1950, scale: 0.82, label: 'СВЯЗЬ' },
+    { type: 'tower', x: 2215, scale: 1.12 },
+    { type: 'antenna', x: 2380, scale: 1.08 },
+    { type: 'growth', x: 2460, scale: 0.92 },
+    { type: 'sandbags', x: 2590, scale: 1.1 },
+    { type: 'wall', x: 2770, scale: 1.16 },
+    { type: 'fortress', x: 2925, scale: 0.9, label: 'B-02' },
+    { type: 'watchtower', x: 3200, scale: 0.86 },
+    { type: 'crates', x: 3335, scale: 1.02 },
+    { type: 'truck', x: 3500, scale: 1.04 },
+    { type: 'growth', x: 3665, scale: 1.02 },
+    { type: 'radar', x: 3805, scale: 1.12 },
+    { type: 'sandbags', x: 4000, scale: 1.16 },
+    { type: 'fortress', x: 4155, scale: 1.02, label: 'HQ' },
+    { type: 'antenna', x: 4465, scale: 1.16 },
+    { type: 'palm', x: 4575, scale: 1.12 },
+    { type: 'wall', x: 4700, scale: 1.08 },
+    { type: 'flag', x: 4830, scale: 1.05 },
+    { type: 'command', x: 4910, scale: 1.16 },
+    { type: 'spotlight', x: 5180, scale: 1.08 },
+    { type: 'growth', x: 5290, scale: 1.18 }
   ];
 
   const ASSET_SOURCES = {
@@ -1262,9 +1275,35 @@
     }
 
     if (theme === 'coast') {
-      ctx.fillStyle = 'rgba(21,103,123,.82)';
+      const sea = ctx.createLinearGradient(0, 480, 0, groundAt(0));
+      sea.addColorStop(0, 'rgba(47,127,143,.78)');
+      sea.addColorStop(0.55, 'rgba(17,92,112,.9)');
+      sea.addColorStop(1, 'rgba(8,53,70,.96)');
+      ctx.fillStyle = sea;
       ctx.fillRect(0, 480, view.width, groundAt(0) - 480);
-      for (let y = 505; y < groundAt(0); y += 32) line(0, y, view.width, y, 2, 'rgba(174,235,236,.14)');
+      line(0, 480, view.width, 480, 3, 'rgba(255,218,153,.34)');
+
+      const waveShift = (state.camera.x * 0.08) % 180;
+      for (let y = 500; y < groundAt(0); y += 27) {
+        for (let x = -180 - waveShift + (y % 54); x < view.width + 180; x += 180) {
+          line(x, y, x + 76, y, 2, 'rgba(193,239,235,.2)');
+        }
+      }
+
+      const reflectionX = view.width * 0.18;
+      for (let y = 490; y < Math.min(630, groundAt(0)); y += 13) {
+        const spread = 15 + (y - 490) * 0.42;
+        line(reflectionX - spread, y, reflectionX + spread, y, 3, `rgba(255,205,119,${Math.max(0.04, 0.24 - (y - 490) * 0.0012)})`);
+      }
+
+      const islandShift = state.camera.x * 0.07;
+      for (let index = -1; index < Math.ceil(view.width / 430) + 2; index += 1) {
+        const x = index * 430 - (islandShift % 430);
+        polygon([[x - 55, 486], [x + 5, 446], [x + 45, 459], [x + 106, 486]], 'rgba(31,64,62,.7)');
+        line(x + 14, 454, x + 10, 423, 3, 'rgba(35,72,58,.7)');
+        line(x + 10, 424, x - 10, 413, 5, 'rgba(31,88,57,.64)');
+        line(x + 10, 424, x + 31, 411, 5, 'rgba(31,88,57,.64)');
+      }
     } else if (theme === 'river') {
       ctx.fillStyle = 'rgba(20,91,81,.74)';
       ctx.fillRect(0, 505, view.width, groundAt(0) - 505);
@@ -1348,6 +1387,148 @@
       line(x - 7 * scale, baseY - 158 * scale, x + Math.sin(angle) * 88 * scale, baseY - 158 * scale - Math.cos(angle) * 37 * scale, 9 * scale, '#1f7047');
     }
     ctx.restore();
+  }
+
+  function drawCoastalCliffAt(x, baseY, scale = 1, alpha = 1) {
+    const width = 430 * scale;
+    const height = 305 * scale;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    polygon([
+      [x, baseY], [x + 16 * scale, baseY - 92 * scale], [x + 68 * scale, baseY - 132 * scale],
+      [x + 93 * scale, baseY - 224 * scale], [x + 153 * scale, baseY - height],
+      [x + 207 * scale, baseY - 250 * scale], [x + 252 * scale, baseY - 278 * scale],
+      [x + 305 * scale, baseY - 186 * scale], [x + 361 * scale, baseY - 154 * scale],
+      [x + width, baseY - 64 * scale], [x + width, baseY]
+    ], '#35443d');
+    polygon([
+      [x + 92 * scale, baseY - 215 * scale], [x + 153 * scale, baseY - height],
+      [x + 207 * scale, baseY - 250 * scale], [x + 178 * scale, baseY - 82 * scale],
+      [x + 112 * scale, baseY]
+    ], '#5b594b');
+    polygon([
+      [x + 250 * scale, baseY - 270 * scale], [x + 305 * scale, baseY - 186 * scale],
+      [x + 361 * scale, baseY - 154 * scale], [x + 338 * scale, baseY],
+      [x + 260 * scale, baseY]
+    ], '#464d43');
+    for (let ledge = 0; ledge < 5; ledge += 1) {
+      const lx = x + (48 + ledge * 67) * scale;
+      const ly = baseY - (52 + (ledge % 3) * 58) * scale;
+      line(lx, ly, lx + (52 + (ledge % 2) * 25) * scale, ly - 8 * scale, 5 * scale, 'rgba(190,169,119,.2)');
+    }
+    for (let clump = 0; clump < 14; clump += 1) {
+      const cx = x + (28 + (clump * 79) % 370) * scale;
+      const cy = baseY - (52 + (clump * 47) % 245) * scale;
+      ctx.fillStyle = clump % 3 ? '#24533a' : '#377047';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, (18 + clump % 4 * 4) * scale, (9 + clump % 3 * 3) * scale, -0.25, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawTropicalGrowthAt(x, baseY, scale = 1, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    for (let clump = 0; clump < 5; clump += 1) {
+      const rootX = x + clump * 23 * scale;
+      const height = (38 + (clump % 3) * 17) * scale;
+      line(rootX, baseY, rootX + (clump - 2) * 9 * scale, baseY - height, 5 * scale, clump % 2 ? '#275d3c' : '#317448');
+      for (let leaf = 1; leaf < 5; leaf += 1) {
+        const stemX = rootX + (clump - 2) * 9 * scale * (leaf / 5);
+        const stemY = baseY - height * (leaf / 5);
+        const reach = (12 + leaf * 3) * scale;
+        line(stemX, stemY, stemX - reach, stemY - 7 * scale, 5 * scale, '#357e49');
+        line(stemX, stemY, stemX + reach, stemY - 9 * scale, 5 * scale, '#28643e');
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawFlagAt(x, baseY, scale = 1) {
+    const top = baseY - 205 * scale;
+    line(x, baseY, x, top, 6 * scale, '#343a39');
+    polygon([
+      [x + 3 * scale, top + 8 * scale], [x + 112 * scale, top + 25 * scale],
+      [x + 96 * scale, top + 48 * scale], [x + 116 * scale, top + 70 * scale],
+      [x + 3 * scale, top + 58 * scale]
+    ], '#8e3730');
+    polygon([
+      [x + 25 * scale, top + 24 * scale], [x + 52 * scale, top + 34 * scale],
+      [x + 78 * scale, top + 28 * scale], [x + 60 * scale, top + 45 * scale],
+      [x + 80 * scale, top + 59 * scale], [x + 51 * scale, top + 49 * scale]
+    ], 'rgba(226,210,161,.72)');
+  }
+
+  function drawWatchtowerAt(x, baseY, scale = 1) {
+    const width = 142 * scale;
+    const cabinBottom = baseY - 205 * scale;
+    const cabinTop = cabinBottom - 92 * scale;
+    line(x + 18 * scale, baseY, x + 34 * scale, cabinBottom, 10 * scale, '#3b3328');
+    line(x + width - 18 * scale, baseY, x + width - 34 * scale, cabinBottom, 10 * scale, '#3b3328');
+    line(x + 18 * scale, baseY - 18 * scale, x + width - 34 * scale, cabinBottom, 5 * scale, '#66513a');
+    line(x + width - 18 * scale, baseY - 18 * scale, x + 34 * scale, cabinBottom, 5 * scale, '#66513a');
+    ctx.fillStyle = '#514536';
+    ctx.fillRect(x + 12 * scale, cabinTop, width - 24 * scale, 92 * scale);
+    ctx.fillStyle = '#182021';
+    ctx.fillRect(x + 28 * scale, cabinTop + 21 * scale, 36 * scale, 35 * scale);
+    ctx.fillRect(x + 79 * scale, cabinTop + 21 * scale, 34 * scale, 35 * scale);
+    ctx.fillStyle = '#78664b';
+    ctx.fillRect(x, cabinBottom - 10 * scale, width, 16 * scale);
+    polygon([
+      [x - 18 * scale, cabinTop], [x + 20 * scale, cabinTop - 25 * scale],
+      [x + width - 10 * scale, cabinTop - 25 * scale], [x + width + 19 * scale, cabinTop]
+    ], '#34342e');
+  }
+
+  function drawFortressAt(x, baseY, scale = 1, label = 'A-01') {
+    const width = 332 * scale;
+    const lowerTop = baseY - 184 * scale;
+    const upperTop = baseY - 292 * scale;
+    polygon([
+      [x - 28 * scale, baseY], [x - 8 * scale, baseY - 42 * scale],
+      [x + width + 16 * scale, baseY - 30 * scale], [x + width + 36 * scale, baseY]
+    ], '#2a3331');
+    ctx.fillStyle = '#424b46';
+    ctx.fillRect(x, lowerTop, width, 184 * scale);
+    ctx.fillStyle = '#4c5650';
+    ctx.fillRect(x + 50 * scale, upperTop, 216 * scale, 108 * scale);
+    ctx.fillStyle = '#697067';
+    ctx.fillRect(x - 15 * scale, lowerTop - 18 * scale, width + 30 * scale, 22 * scale);
+    ctx.fillRect(x + 35 * scale, upperTop - 17 * scale, 246 * scale, 20 * scale);
+    for (let notch = 0; notch < 7; notch += 1) {
+      ctx.fillStyle = notch % 2 ? '#525b55' : '#616961';
+      ctx.fillRect(x - 10 * scale + notch * 52 * scale, lowerTop - 36 * scale, 32 * scale, 20 * scale);
+    }
+    ctx.fillStyle = '#11191b';
+    ctx.fillRect(x + 29 * scale, lowerTop + 44 * scale, 119 * scale, 57 * scale);
+    ctx.fillRect(x + 91 * scale, upperTop + 31 * scale, 101 * scale, 43 * scale);
+    ctx.fillStyle = '#1b2222';
+    ctx.fillRect(x + 251 * scale, lowerTop + 57 * scale, 58 * scale, 127 * scale);
+    ctx.fillStyle = 'rgba(239,177,73,.55)';
+    ctx.fillRect(x + 267 * scale, lowerTop + 77 * scale, 25 * scale, 10 * scale);
+    for (let row = 0; row < 4; row += 1) {
+      const y = lowerTop + 12 * scale + row * 47 * scale;
+      line(x, y, x + width, y, 2 * scale, 'rgba(22,28,27,.48)');
+    }
+    for (let column = 1; column < 6; column += 1) {
+      const cx = x + column * 56 * scale;
+      line(cx, lowerTop, cx, baseY, 2 * scale, 'rgba(22,28,27,.38)');
+    }
+    const cracks = [[42, 24, 61, 53], [178, 9, 164, 37], [222, 117, 239, 146], [83, 132, 65, 156]];
+    for (const crack of cracks) {
+      line(x + crack[0] * scale, lowerTop + crack[1] * scale, x + crack[2] * scale, lowerTop + crack[3] * scale, 2 * scale, 'rgba(21,27,26,.55)');
+    }
+    ctx.fillStyle = '#3d7547';
+    for (let patch = 0; patch < 9; patch += 1) {
+      const px = x + (18 + patch * 37) * scale;
+      const py = patch % 2 ? lowerTop - 5 * scale : baseY - 17 * scale;
+      ctx.fillRect(px, py, (18 + patch % 3 * 9) * scale, 8 * scale);
+    }
+    drawSandbagsAt(x + 160 * scale, upperTop - 14 * scale, scale * 0.62);
+    ctx.fillStyle = 'rgba(224,216,183,.68)';
+    ctx.font = `900 ${Math.max(11, 17 * scale)}px system-ui`;
+    ctx.fillText(label, x + 17 * scale, baseY - 28 * scale);
   }
 
   function drawBunkerAt(x, baseY, scale = 1, label = '') {
@@ -1514,29 +1695,43 @@
   }
 
   function drawMissionOneMidground() {
-    const midItems = [
-      { type: 'palm', x: 220, scale: 0.78 },
-      { type: 'palm', x: 610, scale: 0.92 },
-      { type: 'bunker', x: 980, scale: 0.78 },
-      { type: 'palm', x: 1520, scale: 0.86 },
-      { type: 'tower', x: 1900, scale: 0.72 },
-      { type: 'bunker', x: 2490, scale: 0.86 },
-      { type: 'antenna', x: 3050, scale: 0.7 },
-      { type: 'bunker', x: 3610, scale: 0.84 },
-      { type: 'tower', x: 4180, scale: 0.76 },
-      { type: 'bunker', x: 4730, scale: 0.94 }
+    const cliffItems = [
+      { x: 330, scale: 1.02 }, { x: 1180, scale: 0.88 }, { x: 2100, scale: 1.08 },
+      { x: 3050, scale: 0.92 }, { x: 3970, scale: 1.05 }, { x: 4850, scale: 0.94 }
     ];
-    const factor = 0.72;
+    const cliffBaseY = groundAt(0) - 22;
+    for (const cliff of cliffItems) {
+      const x = screenX(cliff.x, 0.42);
+      if (visibleX(x, 520)) drawCoastalCliffAt(x, cliffBaseY, cliff.scale, 0.82);
+    }
+
+    const midItems = [
+      { type: 'palm', x: -20, scale: 1.02 },
+      { type: 'antenna', x: 620, scale: 0.82 },
+      { type: 'watchtower', x: 830, scale: 0.72 },
+      { type: 'palm', x: 1190, scale: 0.82 },
+      { type: 'bunker', x: 1480, scale: 0.76 },
+      { type: 'palm', x: 1750, scale: 0.9 },
+      { type: 'tower', x: 2150, scale: 0.72 },
+      { type: 'bunker', x: 2650, scale: 0.82 },
+      { type: 'antenna', x: 3190, scale: 0.7 },
+      { type: 'watchtower', x: 3540, scale: 0.74 },
+      { type: 'bunker', x: 3890, scale: 0.82 },
+      { type: 'tower', x: 4380, scale: 0.76 },
+      { type: 'bunker', x: 4890, scale: 0.9 }
+    ];
+    const factor = 0.66;
     const baseY = groundAt(0) - 17;
     ctx.save();
-    ctx.globalAlpha = 0.58;
+    ctx.globalAlpha = 0.52;
     for (const item of midItems) {
       const x = screenX(item.x, factor);
-      if (!visibleX(x, 320)) continue;
+      if (!visibleX(x, 380)) continue;
       if (item.type === 'palm') drawPalmAt(x, baseY, item.scale, 1);
       if (item.type === 'bunker') drawBunkerAt(x, baseY, item.scale);
       if (item.type === 'tower') drawTowerAt(x, baseY, item.scale);
       if (item.type === 'antenna') drawAntennaAt(x, baseY, item.scale);
+      if (item.type === 'watchtower') drawWatchtowerAt(x, baseY, item.scale);
     }
     ctx.restore();
   }
@@ -1587,6 +1782,17 @@
       ctx.strokeStyle = currentLevel().theme === 'snow' ? 'rgba(235,246,252,.82)' : currentLevel().theme === 'swamp' ? 'rgba(82,143,82,.75)' : 'rgba(188,163,91,.78)';
       ctx.lineWidth = 5;
       ctx.stroke();
+
+      if (currentLevel().id === 1) {
+        for (let x = segmentStart; x < Math.min(segmentEnd, view.width); x += 58) {
+          const ground = groundAt(state.camera.x + x);
+          ctx.fillStyle = Math.floor((state.camera.x + x) / 58) % 2 ? '#323b38' : '#3d443e';
+          ctx.fillRect(x, ground + 3, 55, 24);
+          line(x, ground + 3, x, ground + 28, 2, 'rgba(12,18,18,.55)');
+          ctx.fillStyle = 'rgba(56,113,62,.72)';
+          ctx.fillRect(x + 5, ground - 1, 18 + (Math.floor(x / 58) % 3) * 7, 5);
+        }
+      }
       segmentStart = segmentEnd + step;
     }
 
@@ -1614,6 +1820,10 @@
       if (item.type === 'spotlight') drawSpotlightAt(x, baseY, item.scale);
       if (item.type === 'wreck') drawWreckAt(x, baseY, item.scale);
       if (item.type === 'command') drawCommandAt(x, baseY, item.scale);
+      if (item.type === 'growth') drawTropicalGrowthAt(x, baseY, item.scale);
+      if (item.type === 'flag') drawFlagAt(x, baseY, item.scale);
+      if (item.type === 'watchtower') drawWatchtowerAt(x, baseY, item.scale);
+      if (item.type === 'fortress') drawFortressAt(x, baseY, item.scale, item.label);
     }
   }
 
@@ -1852,6 +2062,14 @@
       polygon([[x - width * 0.5, WORLD_HEIGHT], [x - width * 0.34, groundAt(state.camera.x + x) + 26], [x, groundAt(state.camera.x + x) - height], [x + width * 0.34, groundAt(state.camera.x + x) + 20], [x + width * 0.5, WORLD_HEIGHT]], ctx.fillStyle);
     }
     ctx.restore();
+
+    if (theme === 'coast') {
+      const foliageShift = state.camera.x * 1.12;
+      for (let index = -1; index < Math.ceil(view.width / 270) + 2; index += 1) {
+        const x = index * 270 - (foliageShift % 270);
+        drawTropicalGrowthAt(x, WORLD_HEIGHT + 8, 0.72 + (index % 3) * 0.08, 0.34);
+      }
+    }
 
     const vignette = ctx.createRadialGradient(view.width * 0.5, WORLD_HEIGHT * 0.48, WORLD_HEIGHT * 0.28, view.width * 0.5, WORLD_HEIGHT * 0.48, Math.max(view.width, WORLD_HEIGHT) * 0.72);
     vignette.addColorStop(0.58, 'rgba(0,0,0,0)');
