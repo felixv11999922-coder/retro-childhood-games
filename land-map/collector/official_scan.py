@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+import ssl
 import time
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
@@ -66,7 +66,7 @@ def status(value: str) -> str:
     return "candidate"
 
 
-def fetch(url: str, timeout: float = 12) -> str | None:
+def fetch(url: str, timeout: float = 12, verify_tls: bool = True) -> str | None:
     req = Request(
         url,
         headers={
@@ -75,8 +75,9 @@ def fetch(url: str, timeout: float = 12) -> str | None:
             "Accept-Language": "ru-RU,ru;q=0.9",
         },
     )
+    context = None if verify_tls else ssl._create_unverified_context()
     try:
-        with urlopen(req, timeout=timeout) as response:
+        with urlopen(req, timeout=timeout, context=context) as response:
             charset = response.headers.get_content_charset() or "utf-8"
             return response.read().decode(charset, errors="replace")
     except Exception as exc:
@@ -100,7 +101,8 @@ def candidates_from_html(html: str, source: dict, scope: dict) -> Iterable[dict]
         title = text(anchor_html)
         if len(title) < 4:
             continue
-        kind = classify(f"{title} {context}")
+        combined = f"{title} {context}"
+        kind = classify(combined)
         if not kind:
             continue
         dm = DATE_RE.search(context)
@@ -110,7 +112,7 @@ def candidates_from_html(html: str, source: dict, scope: dict) -> Iterable[dict]
             "cadastral_district": scope["cadastral_district"],
             "municipality": scope.get("municipality"),
             "doc_type": kind,
-            "doc_status": status(f"{title} {context}"),
+            "doc_status": status(combined),
             "title": title[:300],
             "document_url": absolute,
             "published_at": published,
@@ -118,29 +120,33 @@ def candidates_from_html(html: str, source: dict, scope: dict) -> Iterable[dict]
             "source_url": source["base_url"],
             "snippet": context[:700],
             "official": bool(source.get("official", False)),
+            "transport_tls_verified": bool(source.get("tls_verify", True)),
+            "transport_note": source.get("transport_note"),
         }
 
 
 def scan_source(scope: dict, source: dict) -> list[dict]:
     found: dict[str, dict] = {}
     mode = source.get("search_mode", "wordpress_query")
-    urls: list[str] = []
+    urls: list[str] = [source["base_url"]]
     if mode == "wordpress_query":
         for query in QUERIES:
             urls.append(source["base_url"] + "?" + urlencode({"s": query}))
-    else:
-        urls.append(source["base_url"])
+
+    verify_tls = bool(source.get("tls_verify", True))
+    if not verify_tls:
+        print(f"WARN TLS verification disabled only for configured source: {source['name']}")
 
     for url in urls:
         print(f"GET {url}")
-        html = fetch(url)
+        html = fetch(url, verify_tls=verify_tls)
         if not html:
             continue
         for item in candidates_from_html(html, source, scope):
             old = found.get(item["document_url"])
             if old is None or len(item.get("snippet", "")) > len(old.get("snippet", "")):
                 found[item["document_url"]] = item
-        time.sleep(0.4)
+        time.sleep(0.35)
     return list(found.values())
 
 
@@ -149,7 +155,11 @@ def load_existing() -> dict[str, dict]:
         return {}
     try:
         payload = json.loads(OUT_FILE.read_text("utf-8"))
-        return {item["document_url"]: item for item in payload.get("candidates", []) if item.get("document_url")}
+        return {
+            item["document_url"]: item
+            for item in payload.get("candidates", [])
+            if item.get("document_url")
+        }
     except Exception:
         return {}
 
@@ -168,7 +178,10 @@ def main() -> None:
                 merged[item["document_url"]] = item
 
     rows = list(merged.values())
-    rows.sort(key=lambda r: (r.get("published_at") or "", r.get("last_seen_at") or ""), reverse=True)
+    rows.sort(
+        key=lambda r: (r.get("published_at") or "", r.get("last_seen_at") or ""),
+        reverse=True,
+    )
     payload = {
         "generated_at": now,
         "count": len(rows),
