@@ -1,11 +1,12 @@
 (() => {
   'use strict';
-  const VERSION = '0.6';
+  const VERSION = '0.7.0';
   const ENDPOINT = 'https://kexfusnwcxqbshpwlshx.supabase.co/functions/v1/planning-sources';
-  const CANDIDATES_URL = './data/project-candidates.json?v=0.6';
+  const CANDIDATES_URL = './data/project-candidates.json?v=0.7.0';
   const $ = id => document.getElementById(id);
   const validCad = v => /^\d{1,2}:\d{1,2}:\d{4,10}:\d+$/.test((v || '').trim());
-  let lastRequested = '';
+  let requestSequence = 0;
+  let activeController = null;
 
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -23,7 +24,7 @@
     const sources = Array.isArray(data.sources) ? data.sources : [];
     const hint = data.scope_hint;
     const hintLine = hint
-      ? `<div class="planning-note"><b>Аварийный ориентир:</b> ${esc(hint.label)}. Используется только если точный контур НСПД не получен; это не координата участка.</div>`
+      ? `<div class="planning-note"><b>Резервный ориентир:</b> ${esc(hint.label)}. Используется только если точный контур НСПД не получен; это не координата участка.</div>`
       : '';
     box.innerHTML = `
       <div class="planning-scope"><strong>${esc(data.region_code)}:${esc(data.cadastral_district)}</strong>${municipality}</div>
@@ -41,7 +42,7 @@
   function candidateAccepted(r) {
     if (!r || r.doc_type === 'REVIEW') return false;
     if (r.confidence === 'rejected' || r.confidence === 'review') return false;
-    if (typeof r.relevance_score === 'number' && r.relevance_score < 4) return false;
+    if (typeof r.relevance_score === 'number' && r.relevance_score < 7) return false;
     return ['PZZ','GENPLAN','PPT','PMT','KRT'].includes(r.doc_type);
   }
 
@@ -74,38 +75,47 @@
     box.classList.add('show');
   }
 
-  async function loadCandidates(cn) {
+  async function loadCandidates(cn, requestId) {
     try {
-      const r = await fetch(CANDIDATES_URL, { cache: 'no-store' });
-      if (!r.ok) throw new Error('no candidates');
+      const r = await fetch(`${CANDIDATES_URL}&t=${Date.now()}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`candidates_${r.status}`);
       const data = await r.json();
+      if (requestId !== requestSequence) return;
       renderCandidates(cn, data.candidates || data);
     } catch (_) {
-      renderCandidates(cn, []);
+      if (requestId === requestSequence) renderCandidates(cn, []);
     }
   }
 
   async function loadPlanning(cn) {
     cn = (cn || '').trim();
-    if (!validCad(cn) || cn === lastRequested) return;
-    lastRequested = cn;
+    if (!validCad(cn)) return;
+    const requestId = ++requestSequence;
+    if (activeController) activeController.abort();
+    const controller = new AbortController();
+    activeController = controller;
+
     const box = $('planningSources');
     if (box) {
       box.innerHTML = '<div class="planning-loading"><span class="spinner"></span>Определяю ФГИС ТП / ГИСОГД / муниципальные источники…</div>';
       box.classList.add('show');
     }
-    loadCandidates(cn);
+    loadCandidates(cn, requestId);
     try {
       const u = new URL(ENDPOINT); u.searchParams.set('cn', cn);
-      const r = await fetch(u, { cache: 'no-store' });
+      const r = await fetch(u, { cache: 'no-store', signal: controller.signal });
       const data = await r.json();
-      if (!r.ok || !data.ok) throw new Error('registry');
+      if (requestId !== requestSequence) return;
+      if (!r.ok || !data.ok) throw new Error(`registry_${r.status}`);
       renderSources(data);
       if (data.scope_hint) {
         window.dispatchEvent(new CustomEvent('landhorizon:scope', { detail: { cn, scope_hint: data.scope_hint } }));
       }
-    } catch (_) {
-      if (box) box.innerHTML = '<div class="planning-note warn">Реестр источников сейчас не ответил. Это отдельный канал: базовая карта и кадастровый поиск продолжают работать.</div>';
+    } catch (error) {
+      if (requestId !== requestSequence || error?.name === 'AbortError') return;
+      if (box) box.innerHTML = '<div class="planning-note warn">Реестр источников сейчас не ответил. Это отдельный канал: базовая карта и кадастровый поиск продолжают работать. Повторный поиск этим же номером запустит новую попытку.</div>';
+    } finally {
+      if (requestId === requestSequence && activeController === controller) activeController = null;
     }
   }
 
