@@ -1,9 +1,11 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.6.1';
-  const NSPD_PROXY = 'https://kexfusnwcxqbshpwlshx.supabase.co/functions/v1/nspd-search';
-  const CACHE_PREFIX = 'land-horizon:nspd:';
+  const VERSION = '0.7.0';
+  const SUPABASE_FUNCTIONS = 'https://kexfusnwcxqbshpwlshx.supabase.co/functions/v1';
+  const NSPD_PROXY = `${SUPABASE_FUNCTIONS}/nspd-search`;
+  const NSPD_WMS_PROXY = `${SUPABASE_FUNCTIONS}/nspd-wms`;
+  const CACHE_PREFIX = 'land-horizon:nspd:v2:';
   const CACHE_TTL = 12 * 60 * 60 * 1000;
 
   const $ = id => document.getElementById(id);
@@ -14,20 +16,23 @@
   }).addTo(map);
 
   const wmsHealth = { loads: 0, errors: 0, settled: false };
-  function updateWmsHealth(ok) {
-    if (ok) wmsHealth.loads += 1; else wmsHealth.errors += 1;
-    if (wmsHealth.loads > 0) {
+  function setWmsHealthState(ok, text = '') {
+    if (ok) {
       wmsHealth.settled = true;
       if ($('nspdPill')) { $('nspdPill').textContent = 'онлайн'; $('nspdPill').className = 'pill ok'; }
-      if ($('wmsStatus')) $('wmsStatus').textContent = 'отвечает';
-    } else if (wmsHealth.errors >= 4) {
-      wmsHealth.settled = true;
+      if ($('wmsStatus')) $('wmsStatus').textContent = text || 'отвечает через прокси';
+    } else {
       if ($('nspdPill')) { $('nspdPill').textContent = 'нет ответа'; $('nspdPill').className = 'pill future'; }
-      if ($('wmsStatus')) $('wmsStatus').textContent = 'нет ответа';
+      if ($('wmsStatus')) $('wmsStatus').textContent = text || 'нет ответа';
     }
   }
+  function updateWmsHealth(ok) {
+    if (ok) wmsHealth.loads += 1; else wmsHealth.errors += 1;
+    if (wmsHealth.loads > 0) setWmsHealthState(true);
+    else if (wmsHealth.errors >= 4) { wmsHealth.settled = true; setWmsHealthState(false); }
+  }
 
-  const wmsBase = id => `https://nspd.gov.ru/api/aeggis/v3/${id}/wms`;
+  const wmsBase = id => `${NSPD_WMS_PROXY}?layer=${id}`;
   const makeWms = (id, name) => {
     const layer = L.tileLayer.wms(wmsBase(id), {
       layers: String(id),
@@ -64,7 +69,10 @@
   let currentController = null;
   let activeSearchCn = null;
   let searchSequence = 0;
+  let identifySequence = 0;
   const scopeHints = new Map();
+
+  window.__landHorizonDiagnostics = { version: VERSION, lastSearchError: null, lastIdentifyError: null };
 
   function setStatus(text, cls = '') {
     $('searchStatus').className = `status ${cls}`;
@@ -121,7 +129,7 @@
     if (data.cache_scope === 'server') return 'кэш сервера';
     if (data.cache_scope === 'server-stale') return 'старый кэш';
     if (data.source === 'PKK_LEGACY') return 'резервная ПКК';
-    if (data.source === 'NSPD_DIRECT') return 'НСПД · браузер';
+    if (data.source === 'NSPD_WMS_IDENTIFY') return 'НСПД · WMS';
     if (data.source === 'NSPD') return 'НСПД';
     return null;
   }
@@ -150,9 +158,11 @@
     $('infoPill').textContent = sourceLabel(data, fromLocalCache) || 'источник';
     $('infoPill').className = data.stale || data.approximate ? 'pill future' : 'pill ok';
     if (data.stale) $('hint').textContent = 'Онлайн-поиск НСПД сейчас не ответил; показана последняя сохранённая версия. Проектные источники проверяются независимо.';
+    else if (data.geometry_quality === 'official_center_no_boundary') $('hint').textContent = 'Объект найден в НСПД, но публичная выдача содержит точку вместо контура. Это подтверждает объект, но не границы участка.';
     else if (data.approximate) $('hint').textContent = 'Показан ориентир резервного источника. Для юридически значимой работы точную геометрию нужно подтвердить НСПД/ЕГРН.';
+    else if (data.source === 'NSPD_WMS_IDENTIFY') $('hint').textContent = 'Контур получен через официальный WMS-слой НСПД по точке на карте. Кадастровый номер сверяется с выбранным объектом.';
     else if (fromLocalCache || data.cache_scope === 'server') $('hint').textContent = 'Контур получен из проверенного кэша; онлайн-слои НСПД продолжают проверяться отдельно.';
-    else $('hint').textContent = 'Точный контур найден по кадастровому номеру. Результат сохранён в кэш, чтобы следующий поиск не зависел от доступности НСПД.';
+    else $('hint').textContent = 'Точный контур найден по кадастровому номеру. Результат сохранён в кэш, чтобы следующий поиск меньше зависел от доступности НСПД.';
 
     renderProperties(data);
     $('copyLink').disabled = !lastCadNumber;
@@ -190,7 +200,7 @@
       ['ВРИ', findValue(entries, ['permitted_use_established_by_document','util_by_doc','permitted_use','util_code','use_type'])],
       ['Статус', findValue(entries, ['status','object_status','state','statecd'])],
       data.source || data.cache_scope ? ['Источник поиска', sourceLabel(data, false)] : null,
-      data.geometry || data.geometry_quality ? ['Геометрия', data.approximate ? 'ориентировочная' : 'точная геометрия источника'] : null
+      data.geometry || data.geometry_quality ? ['Геометрия', data.approximate ? 'ориентир / точка источника' : 'точная геометрия источника'] : null
     ].filter(Boolean).filter(([,v]) => v !== null && v !== undefined && String(v).trim() !== '');
     for (const [k,v] of rows) {
       const row = document.createElement('div'); row.className = 'prop';
@@ -215,6 +225,11 @@
     const R = 6378137;
     return [(x / R) * 180 / Math.PI, (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 180 / Math.PI];
   }
+  function lonLatToMercator(lon, lat) {
+    const R = 6378137;
+    const safeLat = Math.max(-85.05112878, Math.min(85.05112878, lat));
+    return [R * lon * Math.PI / 180, R * Math.log(Math.tan(Math.PI / 4 + safeLat * Math.PI / 360))];
+  }
   function convertCoords(c) {
     if (!Array.isArray(c)) return c;
     if (c.length >= 2 && typeof c[0] === 'number' && typeof c[1] === 'number') {
@@ -224,28 +239,9 @@
     return c.map(convertCoords);
   }
   function convertGeometry(g) { return g?.type && g?.coordinates ? { type: g.type, coordinates: convertCoords(g.coordinates) } : null; }
-  function exactNspdFeature(raw, cn) {
-    const fs = raw?.data?.features;
-    if (!Array.isArray(fs)) return null;
-    return fs.find(f => {
-      const p = f?.properties || {}, o = p.options || {};
-      const found = normalizeCadNumber(o.cad_num || p.descr || p.cad_num || p.label || p.externalKey || '');
-      return found === cn;
-    }) || null;
-  }
-
-  async function directNspdSearch(cn, timeoutMs = 3200) {
-    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const u = new URL('https://nspd.gov.ru/api/geoportal/v2/search/geoportal');
-      u.searchParams.set('thematicSearchId', '1'); u.searchParams.set('query', cn);
-      const r = await fetch(u, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json, text/plain, */*' } });
-      if (!r.ok) throw new Error(`direct_${r.status}`);
-      const raw = await r.json(); const f = exactNspdFeature(raw, cn); const geometry = f ? convertGeometry(f.geometry) : null;
-      if (!f || !geometry) throw new Error('direct_no_exact');
-      const p = f.properties || {}, o = p.options || {};
-      return { ok: true, cadastral_number: normalizeCadNumber(o.cad_num || p.descr || cn), geometry, properties: p, source: 'NSPD_DIRECT', approximate: false, geometry_quality: 'official_search_geometry' };
-    } finally { clearTimeout(timer); }
+  function featureCadNumber(f) {
+    const p = f?.properties || {}, o = p.options || {};
+    return normalizeCadNumber(o.cad_num || p.descr || p.cad_num || p.label || p.externalKey || '');
   }
 
   async function proxySearch(cn, forceLive, signal) {
@@ -256,11 +252,13 @@
     return data;
   }
 
-  async function firstSuccessful(tasks) {
-    return await new Promise((resolve, reject) => {
-      let left = tasks.length; const errors = [];
-      tasks.forEach(p => p.then(resolve).catch(e => { errors.push(e); if (--left === 0) reject(errors); }));
-    });
+  function explainSearchFailure(details) {
+    if (!details) return 'Точный поиск сейчас не ответил.';
+    if (details.error === 'exact_not_found') return 'НСПД ответила, но точного объекта с этим кадастровым номером в публичной выдаче не найдено. Проверьте номер; работа по кадастровому кварталу продолжается.';
+    if (details.error === 'object_found_without_geometry') return 'Объект найден, но НСПД не вернула геометрию его границ. Слои территории и поиск документов продолжают работать.';
+    if (details.error === 'upstream_blocked') return 'Автоматический доступ к поиску НСПД сейчас блокируется самим источником. WMS-слои проверяются отдельным прокси-каналом.';
+    if (details.error === 'source_timeout') return 'Поисковый API НСПД не ответил вовремя. WMS-слои и градостроительный сбор продолжают работать независимо.';
+    return 'Точный контур через поисковый API сейчас не получен. WMS-слои и градостроительные источники продолжают работать отдельно.';
   }
 
   function applyScopeFallback(cn, reason = '') {
@@ -270,7 +268,7 @@
     clearSelectedGeometry(); clearPointAssociation(); ensureParcelsLayer(); map.setView([lat, lon], zoom, { animate: true });
     $('infoTitle').textContent = `Район участка ${cn}`;
     $('infoPill').textContent = 'ориентир района'; $('infoPill').className = 'pill future';
-    $('hint').textContent = `${h.label || 'Кадастровый район'}: точный контур сейчас не получен, поэтому карта переведена в нужную территорию. Это не координата участка. ${reason}`.trim();
+    $('hint').textContent = `${h.label || 'Кадастровый район'}: точный контур не подтверждён, поэтому карта переведена в нужную территорию. Это не координата участка. ${reason}`.trim();
     renderProperties({ cadastral_number: cn, properties: {} });
     $('copyLink').disabled = false;
     return true;
@@ -280,6 +278,7 @@
     const cn = normalizeCadNumber(rawCn);
     const searchId = ++searchSequence;
     lastCadNumber = cn; activeSearchCn = cn;
+    window.__landHorizonDiagnostics.lastSearchError = null;
     clearSelectedGeometry(); clearPointAssociation();
     const cached = !forceLive ? cacheGet(cn) : null;
     if (cached) {
@@ -289,36 +288,38 @@
 
     if (currentController) currentController.abort();
     const controller = new AbortController(); currentController = controller;
-    const outerTimer = setTimeout(() => controller.abort(), 7600);
+    const outerTimer = setTimeout(() => controller.abort(), 10500);
     const started = Date.now(), btn = $('searchBtn'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Ищу';
     const timer = setInterval(() => {
       if (searchId !== searchSequence) return;
       const sec = Math.max(1, Math.round((Date.now() - started) / 1000));
-      setStatus(`Ищу точный контур двумя сетевыми путями… ${sec} сек.`);
+      setStatus(`Ищу точный объект: 2 режима НСПД + резерв + кэш… ${sec} сек.`);
     }, 900);
-    setStatus('Ищу точный контур двумя сетевыми путями…');
+    setStatus('Ищу точный объект: 2 режима НСПД + резерв + кэш…');
 
     try {
-      const data = await firstSuccessful([
-        directNspdSearch(cn, 3200),
-        proxySearch(cn, forceLive, controller.signal)
-      ]);
+      const data = await proxySearch(cn, forceLive, controller.signal);
       if (searchId !== searchSequence) return;
       cacheSet(cn, data); showParcel(data, false);
-      setStatus(`Точный контур найден за ${((Date.now() - started) / 1000).toFixed(1)} сек.`, data.stale || data.approximate ? 'warn' : 'ok');
+      const msg = data.approximate ? 'Объект найден, но точная граница не подтверждена.' : `Точный контур найден за ${((Date.now() - started) / 1000).toFixed(1)} сек.`;
+      setStatus(msg, data.stale || data.approximate ? 'warn' : 'ok');
       if (window.innerWidth <= 760) $('sidebar').classList.remove('open');
-    } catch (errors) {
+    } catch (error) {
       if (searchId !== searchSequence) return;
-      const list = Array.isArray(errors) ? errors : [errors];
-      const details = list.map(e => e?.details).find(Boolean);
-      const reason = details?.error === 'upstream_blocked' ? 'Серверный путь к НСПД сейчас блокируется источником.' : 'Онлайн-поиск точной геометрии временно недоступен.';
+      const details = error?.details || null;
+      window.__landHorizonDiagnostics.lastSearchError = details || { message: String(error) };
+      const reason = explainSearchFailure(details);
       if (!applyScopeFallback(cn, reason)) {
         $('infoTitle').textContent = `Участок ${cn}`;
-        $('infoPill').textContent = 'точный контур не получен'; $('infoPill').className = 'pill future';
-        $('hint').textContent = `${reason} Это не означает отсутствие участка. Реестр ПЗЗ/генплана и проектные документы продолжают обрабатываться независимо.`;
+        $('infoPill').textContent = details?.error === 'exact_not_found' ? 'не найден в выдаче' : 'контур не получен';
+        $('infoPill').className = 'pill future';
+        $('hint').textContent = `${reason} Реестр ПЗЗ/генплана и проектные документы продолжают обрабатываться независимо.`;
         renderProperties({ cadastral_number: cn, properties: {} });
       }
-      setStatus('Точный контур пока не получен. Работа по территории продолжается — это не блокирующая ошибка.', 'warn');
+      const statusText = details?.error === 'exact_not_found'
+        ? 'Точный объект не найден в публичной выдаче НСПД. Показана нужная кадастровая территория.'
+        : 'Точный контур пока не получен. Работа по территории продолжается — это не блокирующая ошибка.';
+      setStatus(statusText, 'warn');
       $('copyLink').disabled = false;
     } finally {
       clearTimeout(outerTimer); clearInterval(timer);
@@ -327,6 +328,53 @@
         if (currentController === controller) currentController = null;
         activeSearchCn = null;
       }
+    }
+  }
+
+  function buildFeatureInfoUrl(layerId, latlng) {
+    const bounds = map.getBounds(), size = map.getSize(), point = map.latLngToContainerPoint(latlng);
+    const sw = lonLatToMercator(bounds.getWest(), bounds.getSouth());
+    const ne = lonLatToMercator(bounds.getEast(), bounds.getNorth());
+    const u = new URL(NSPD_WMS_PROXY);
+    const params = {
+      layer: String(layerId), SERVICE: 'WMS', VERSION: '1.3.0', REQUEST: 'GetFeatureInfo',
+      LAYERS: String(layerId), QUERY_LAYERS: String(layerId), FORMAT: 'image/png', TRANSPARENT: 'true',
+      INFO_FORMAT: 'application/json', FEATURE_COUNT: '10', WIDTH: String(Math.max(1, Math.round(size.x))),
+      HEIGHT: String(Math.max(1, Math.round(size.y))), I: String(Math.max(0, Math.round(point.x))),
+      J: String(Math.max(0, Math.round(point.y))), CRS: 'EPSG:3857', BBOX: `${sw[0]},${sw[1]},${ne[0]},${ne[1]}`
+    };
+    for (const [k,v] of Object.entries(params)) u.searchParams.set(k, v);
+    return u;
+  }
+
+  async function identifyParcelAt(latlng) {
+    const parcelsChecked = document.querySelector('[data-layer="parcels"]')?.checked;
+    if (!parcelsChecked || map.getZoom() < 14 || activeSearchCn) return;
+    const identifyId = ++identifySequence;
+    const targetCn = lastCadNumber;
+    try {
+      const r = await fetch(buildFeatureInfoUrl(36048, latlng), { cache: 'no-store' });
+      if (!r.ok) throw new Error(`identify_${r.status}`);
+      const raw = await r.json();
+      if (identifyId !== identifySequence) return;
+      const features = Array.isArray(raw?.features) ? raw.features : [];
+      if (!features.length) return;
+      const exact = targetCn ? features.find(f => featureCadNumber(f) === targetCn) : features[0];
+      if (!exact) {
+        const foundCn = featureCadNumber(features[0]);
+        if (foundCn) setStatus(`Под выбранной точкой найден участок ${foundCn}; искомый ${targetCn} здесь не подтверждён.`, 'warn');
+        return;
+      }
+      const cn = featureCadNumber(exact);
+      const geometry = convertGeometry(exact.geometry);
+      if (!cn || !geometry) return;
+      const data = { ok:true, cadastral_number:cn, geometry, properties:exact.properties || {}, source:'NSPD_WMS_IDENTIFY', approximate:geometry.type === 'Point', geometry_quality:'official_wms_feature_info' };
+      if (!targetCn) $('query').value = cn;
+      showParcel(data, false);
+      cacheSet(cn, data);
+      setStatus(targetCn ? 'Точный контур подтверждён через WMS-слой НСПД.' : `Выбран участок ${cn} через WMS-слой НСПД.`, 'ok');
+    } catch (e) {
+      window.__landHorizonDiagnostics.lastIdentifyError = String(e);
     }
   }
 
@@ -343,7 +391,17 @@
     await searchCadNumber(q);
   }
 
-  function lonLatToMercator(lon, lat) { const R = 6378137; return [R * lon * Math.PI / 180, R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360))]; }
+  async function checkWmsProxyHealth() {
+    try {
+      const u = new URL(NSPD_WMS_PROXY); u.searchParams.set('layer', '36048'); u.searchParams.set('health', '1');
+      const r = await fetch(u, { cache: 'no-store' });
+      let data = null; try { data = await r.json(); } catch (_) {}
+      if (r.ok && data?.ok) setWmsHealthState(true, 'прокси + НСПД отвечают');
+      else setWmsHealthState(false, 'прокси не получил WMS');
+    } catch (_) {
+      setWmsHealthState(false, 'проверка WMS не удалась');
+    }
+  }
 
   window.addEventListener('landhorizon:scope', e => {
     const d = e.detail || {}, cn = normalizeCadNumber(d.cn);
@@ -361,7 +419,7 @@
   });
   $('searchBtn').addEventListener('click', runSearch);
   $('query').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
-  map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng));
+  map.on('click', e => { setPoint(e.latlng.lat, e.latlng.lng); identifyParcelAt(e.latlng); });
 
   $('copyCoords').addEventListener('click', async () => { if (!lastCoords) return; await navigator.clipboard.writeText(`${lastCoords[0].toFixed(6)}, ${lastCoords[1].toFixed(6)}`); setStatus('Координаты скопированы.', 'ok'); });
   $('copyLink').addEventListener('click', async () => { if (!lastCadNumber) return; const u = new URL(location.href); u.searchParams.set('cn', lastCadNumber); await navigator.clipboard.writeText(u.toString()); setStatus('Ссылка на этот кадастровый номер скопирована.', 'ok'); });
@@ -379,11 +437,12 @@
     else if (lastCadNumber) applyScopeFallback(lastCadNumber);
   });
   $('mobileToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
-  $('currentMode').addEventListener('click', () => setStatus('Показываю действующие доступные слои. Их фактическая доступность проверяется по загрузке тайлов.', 'ok'));
+  $('currentMode').addEventListener('click', () => setStatus('Показываю действующие доступные слои. WMS идёт через серверный прокси, поэтому НСПД получает корректный Referer.', 'ok'));
   $('compareMode').addEventListener('click', () => setStatus('Сравнение включим только после фильтрации и геопривязки проектных документов. Ложные совпадения в этот режим не допускаются.', 'warn'));
 
   const initial = new URL(location.href).searchParams.get('cn');
   if (initial && isCadNumber(initial)) { $('query').value = normalizeCadNumber(initial); setTimeout(() => searchCadNumber(initial), 250); }
-  setTimeout(() => { if (!wmsHealth.settled && $('wmsStatus')) $('wmsStatus').textContent = 'нет подтверждения'; }, 7000);
+  checkWmsProxyHealth();
+  setTimeout(() => { if (!wmsHealth.settled && $('wmsStatus')) $('wmsStatus').textContent = 'проверка продолжается'; }, 7000);
   console.info(`Land Horizon Map v${VERSION}`);
 })();
