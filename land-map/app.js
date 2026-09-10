@@ -1,27 +1,46 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.4';
+  const VERSION = '0.6';
   const NSPD_PROXY = 'https://kexfusnwcxqbshpwlshx.supabase.co/functions/v1/nspd-search';
   const CACHE_PREFIX = 'land-horizon:nspd:';
   const CACHE_TTL = 12 * 60 * 60 * 1000;
 
-  const $ = (id) => document.getElementById(id);
+  const $ = id => document.getElementById(id);
   const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([55.75, 37.62], 9);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '© OpenStreetMap'
   }).addTo(map);
 
-  const wmsBase = (id) => `https://nspd.gov.ru/api/aeggis/v3/${id}/wms`;
-  const makeWms = (id, name) => L.tileLayer.wms(wmsBase(id), {
-    layers: String(id),
-    format: 'image/png',
-    transparent: true,
-    version: '1.3.0',
-    opacity: 0.72,
-    attribution: `НСПД — ${name}`
-  });
+  const wmsHealth = { loads: 0, errors: 0, settled: false };
+  function updateWmsHealth(ok) {
+    if (ok) wmsHealth.loads += 1; else wmsHealth.errors += 1;
+    if (wmsHealth.loads > 0) {
+      wmsHealth.settled = true;
+      if ($('nspdPill')) { $('nspdPill').textContent = 'онлайн'; $('nspdPill').className = 'pill ok'; }
+      if ($('wmsStatus')) $('wmsStatus').textContent = 'отвечает';
+    } else if (wmsHealth.errors >= 4) {
+      wmsHealth.settled = true;
+      if ($('nspdPill')) { $('nspdPill').textContent = 'нет ответа'; $('nspdPill').className = 'pill future'; }
+      if ($('wmsStatus')) $('wmsStatus').textContent = 'нет ответа';
+    }
+  }
+
+  const wmsBase = id => `https://nspd.gov.ru/api/aeggis/v3/${id}/wms`;
+  const makeWms = (id, name) => {
+    const layer = L.tileLayer.wms(wmsBase(id), {
+      layers: String(id),
+      format: 'image/png',
+      transparent: true,
+      version: '1.3.0',
+      opacity: 0.72,
+      attribution: `НСПД — ${name}`
+    });
+    layer.on('tileload', () => updateWmsHealth(true));
+    layer.on('tileerror', () => updateWmsHealth(false));
+    return layer;
+  };
 
   const layers = {
     parcels: makeWms(36048, 'земельные участки'),
@@ -41,16 +60,18 @@
   let selectedGeo = null;
   let lastCoords = null;
   let lastCadNumber = null;
+  let coordsCadNumber = null;
   let currentController = null;
+  let activeSearchCn = null;
+  let scopeFallback = null;
 
   function setStatus(text, cls = '') {
     $('searchStatus').className = `status ${cls}`;
     $('searchStatus').textContent = text;
   }
 
-  function isCadNumber(q) {
-    return /^\d{1,2}:\d{1,2}:\d{4,10}:\d+$/u.test(q.trim());
-  }
+  function normalizeCadNumber(v) { return String(v || '').trim().replace(/\s+/g, ''); }
+  function isCadNumber(q) { return /^\d{1,2}:\d{1,2}:\d{4,10}:\d+$/u.test(normalizeCadNumber(q)); }
 
   function parseCoords(q) {
     const m = q.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)$/);
@@ -61,8 +82,9 @@
     return null;
   }
 
-  function setPoint(lat, lng, title = 'Точка на карте') {
+  function setPoint(lat, lng, title = 'Точка на карте', cadNumber = null) {
     lastCoords = [lat, lng];
+    coordsCadNumber = cadNumber;
     $('infoTitle').textContent = title;
     $('coords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     $('copyCoords').disabled = false;
@@ -71,10 +93,17 @@
     else marker = L.marker([lat, lng]).addTo(map);
   }
 
+  function clearPointAssociation() {
+    coordsCadNumber = null;
+    lastCoords = null;
+    if (marker) { map.removeLayer(marker); marker = null; }
+    $('copyCoords').disabled = true;
+    $('coords').textContent = 'Точный центр участка пока не определён.';
+  }
+
   function setLayerCheckbox(name, enabled) {
     const cb = document.querySelector(`[data-layer="${name}"]`);
-    if (!cb) return;
-    cb.checked = enabled;
+    if (cb) cb.checked = enabled;
   }
 
   function ensureParcelsLayer() {
@@ -83,85 +112,51 @@
   }
 
   function clearSelectedGeometry() {
-    if (selectedGeo) {
-      map.removeLayer(selectedGeo);
-      selectedGeo = null;
-    }
-  }
-
-  function centerOfGeometry(geometry) {
-    try {
-      const temp = L.geoJSON({ type: 'Feature', properties: {}, geometry });
-      const bounds = temp.getBounds();
-      if (bounds && bounds.isValid()) return bounds.getCenter();
-    } catch (_) {}
-    return null;
+    if (selectedGeo) { map.removeLayer(selectedGeo); selectedGeo = null; }
   }
 
   function sourceLabel(data, fromLocalCache) {
-    if (fromLocalCache) return 'кэш iPad';
+    if (fromLocalCache) return 'кэш устройства';
     if (data.cache_scope === 'server') return 'кэш сервера';
     if (data.cache_scope === 'server-stale') return 'старый кэш';
-    if (data.source === 'PKK_LEGACY') return 'резерв';
+    if (data.source === 'PKK_LEGACY') return 'резервная ПКК';
+    if (data.source === 'NSPD_DIRECT') return 'НСПД · браузер';
     return 'НСПД';
   }
 
   function showParcel(data, fromLocalCache = false) {
     clearSelectedGeometry();
-    lastCadNumber = data.cadastral_number || lastCadNumber || null;
+    const cn = normalizeCadNumber(data.cadastral_number || lastCadNumber);
+    lastCadNumber = cn || lastCadNumber;
+    activeSearchCn = null;
+    scopeFallback = null;
 
     if (data.approximate) ensureParcelsLayer();
-
     if (data.geometry) {
       const isApprox = !!data.approximate;
       selectedGeo = L.geoJSON({ type: 'Feature', properties: data.properties || {}, geometry: data.geometry }, {
-        style: {
-          weight: isApprox ? 2 : 4,
-          opacity: 1,
-          fillOpacity: isApprox ? 0.04 : 0.12,
-          dashArray: isApprox ? '4 6' : '8 5'
-        },
-        pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {
-          radius: isApprox ? 9 : 7,
-          weight: isApprox ? 2 : 3,
-          fillOpacity: isApprox ? 0.12 : 0.25
-        })
+        style: { weight: isApprox ? 2 : 4, opacity: 1, fillOpacity: isApprox ? 0.04 : 0.12, dashArray: isApprox ? '4 6' : '8 5' },
+        pointToLayer: (_f, latlng) => L.circleMarker(latlng, { radius: isApprox ? 9 : 7, weight: isApprox ? 2 : 3, fillOpacity: isApprox ? 0.12 : 0.25 })
       }).addTo(map);
-
       const b = selectedGeo.getBounds();
-      if (b && b.isValid()) {
-        map.fitBounds(b.pad(data.approximate ? 1.2 : 0.35), { maxZoom: data.approximate ? 17 : 18, animate: true });
+      if (b?.isValid()) {
+        map.fitBounds(b.pad(isApprox ? 1.2 : 0.35), { maxZoom: isApprox ? 17 : 18, animate: true });
         const c = b.getCenter();
-        setPoint(c.lat, c.lng, `Участок ${lastCadNumber || ''}`.trim());
-      } else {
-        const c = centerOfGeometry(data.geometry);
-        if (c) {
-          map.setView(c, data.approximate ? 17 : 18);
-          setPoint(c.lat, c.lng, `Участок ${lastCadNumber || ''}`.trim());
-        }
+        setPoint(c.lat, c.lng, `Участок ${cn}`.trim(), cn);
       }
     }
 
     $('infoPill').textContent = sourceLabel(data, fromLocalCache);
     $('infoPill').className = data.stale || data.approximate ? 'pill future' : 'pill ok';
-
-    if (data.stale) {
-      $('hint').textContent = 'НСПД сейчас не ответила, поэтому показана последняя сохранённая сервером версия. Для проверки актуальности используйте онлайн-слои НСПД.';
-    } else if (data.approximate) {
-      $('hint').textContent = 'НСПД не дала точную геометрию, поэтому использован резервный кадастровый канал. Маркер/рамка ориентировочные; слой «Земельные участки ЕГРН» включён автоматически для визуальной проверки.';
-    } else if (fromLocalCache || data.cache_scope === 'server') {
-      $('hint').textContent = 'Участок взят из кэша без повторного ожидания НСПД. Онлайн-слои продолжают загружаться непосредственно с НСПД.';
-    } else {
-      $('hint').textContent = 'Точный контур получен через серверный поиск НСПД и сохранён в общий кэш для следующих запросов.';
-    }
+    if (data.stale) $('hint').textContent = 'Онлайн-поиск НСПД сейчас не ответил; показана последняя сохранённая версия. Проектные источники проверяются независимо.';
+    else if (data.approximate) $('hint').textContent = 'Показан ориентир резервного источника. Для юридически значимой работы точную геометрию нужно подтвердить НСПД/ЕГРН.';
+    else if (fromLocalCache || data.cache_scope === 'server') $('hint').textContent = 'Контур получен из проверенного кэша; онлайн-слои НСПД продолжают проверяться отдельно.';
+    else $('hint').textContent = 'Точный контур найден по кадастровому номеру. Результат сохранён в кэш, чтобы следующий поиск не зависел от доступности НСПД.';
 
     renderProperties(data);
     $('copyLink').disabled = !lastCadNumber;
-
     if (lastCadNumber) {
-      const u = new URL(location.href);
-      u.searchParams.set('cn', lastCadNumber);
-      history.replaceState(null, '', u);
+      const u = new URL(location.href); u.searchParams.set('cn', lastCadNumber); history.replaceState(null, '', u);
     }
   }
 
@@ -169,8 +164,7 @@
     if (!obj || typeof obj !== 'object' || depth > 4 || out.length > 500) return out;
     for (const [k, v] of Object.entries(obj)) {
       const p = path ? `${path}.${k}` : k;
-      if (v && typeof v === 'object') flattenEntries(v, p, out, depth + 1);
-      else out.push([p, v]);
+      if (v && typeof v === 'object') flattenEntries(v, p, out, depth + 1); else out.push([p, v]);
     }
     return out;
   }
@@ -185,11 +179,9 @@
   }
 
   function renderProperties(data) {
-    const box = $('props');
-    box.innerHTML = '';
+    const box = $('props'); box.innerHTML = '';
     const entries = flattenEntries(data.properties || {});
-    const source = data.source === 'PKK_LEGACY' ? 'Резервная ПКК' : 'НСПД';
-    const accuracy = data.approximate ? 'ориентировочно' : 'точная геометрия источника';
+    const source = sourceLabel(data, false);
     const rows = [
       ['Кадастровый №', data.cadastral_number],
       ['Адрес', findValue(entries, ['address_readable','readable_address','address','object_address','location'])],
@@ -198,176 +190,180 @@
       ['ВРИ', findValue(entries, ['permitted_use_established_by_document','util_by_doc','permitted_use','util_code','use_type'])],
       ['Статус', findValue(entries, ['status','object_status','state','statecd'])],
       ['Источник поиска', source],
-      ['Геометрия', accuracy]
+      ['Геометрия', data.approximate ? 'ориентировочная' : 'точная геометрия источника']
     ].filter(([,v]) => v !== null && v !== undefined && String(v).trim() !== '');
-
-    for (const [k, v] of rows) {
-      const row = document.createElement('div');
-      row.className = 'prop';
+    for (const [k,v] of rows) {
+      const row = document.createElement('div'); row.className = 'prop';
       const key = document.createElement('div'); key.className = 'k'; key.textContent = k;
       const val = document.createElement('div'); val.className = 'v'; val.textContent = String(v);
-      row.append(key, val); box.append(row);
+      row.append(key,val); box.append(row);
     }
     box.classList.toggle('show', rows.length > 0);
   }
 
   function cacheGet(cn) {
     try {
-      const raw = localStorage.getItem(CACHE_PREFIX + cn);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed?.savedAt || Date.now() - parsed.savedAt > CACHE_TTL) {
-        localStorage.removeItem(CACHE_PREFIX + cn);
-        return null;
-      }
-      return parsed.data || null;
+      const raw = localStorage.getItem(CACHE_PREFIX + cn); if (!raw) return null;
+      const p = JSON.parse(raw);
+      if (!p?.savedAt || Date.now() - p.savedAt > CACHE_TTL) { localStorage.removeItem(CACHE_PREFIX + cn); return null; }
+      return p.data || null;
     } catch (_) { return null; }
   }
+  function cacheSet(cn, data) { try { localStorage.setItem(CACHE_PREFIX + cn, JSON.stringify({ savedAt: Date.now(), data })); } catch (_) {} }
 
-  function cacheSet(cn, data) {
-    try { localStorage.setItem(CACHE_PREFIX + cn, JSON.stringify({ savedAt: Date.now(), data })); } catch (_) {}
+  function mercatorToLonLat(x, y) {
+    const R = 6378137;
+    return [(x / R) * 180 / Math.PI, (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 180 / Math.PI];
+  }
+  function convertCoords(c) {
+    if (!Array.isArray(c)) return c;
+    if (c.length >= 2 && typeof c[0] === 'number' && typeof c[1] === 'number') {
+      if (Math.abs(c[0]) <= 180 && Math.abs(c[1]) <= 90) return [c[0], c[1]];
+      return mercatorToLonLat(c[0], c[1]);
+    }
+    return c.map(convertCoords);
+  }
+  function convertGeometry(g) { return g?.type && g?.coordinates ? { type: g.type, coordinates: convertCoords(g.coordinates) } : null; }
+  function exactNspdFeature(raw, cn) {
+    const fs = raw?.data?.features;
+    if (!Array.isArray(fs)) return null;
+    return fs.find(f => {
+      const p = f?.properties || {}, o = p.options || {};
+      const found = normalizeCadNumber(o.cad_num || p.descr || p.cad_num || p.label || p.externalKey || '');
+      return found === cn;
+    }) || null;
   }
 
-  async function searchCadNumber(cn, forceLive = false) {
-    lastCadNumber = cn;
-    const cached = !forceLive ? cacheGet(cn) : null;
-    if (cached) {
-      showParcel(cached, true);
-      setStatus('Найдено мгновенно из локального кэша.', 'ok');
-      return;
-    }
+  async function directNspdSearch(cn, timeoutMs = 3200) {
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const u = new URL('https://nspd.gov.ru/api/geoportal/v2/search/geoportal');
+      u.searchParams.set('thematicSearchId', '1'); u.searchParams.set('query', cn);
+      const r = await fetch(u, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json, text/plain, */*' } });
+      if (!r.ok) throw new Error(`direct_${r.status}`);
+      const raw = await r.json(); const f = exactNspdFeature(raw, cn); const geometry = f ? convertGeometry(f.geometry) : null;
+      if (!f || !geometry) throw new Error('direct_no_exact');
+      const p = f.properties || {}, o = p.options || {};
+      return { ok: true, cadastral_number: normalizeCadNumber(o.cad_num || p.descr || cn), geometry, properties: p, source: 'NSPD_DIRECT', approximate: false, geometry_quality: 'official_search_geometry' };
+    } finally { clearTimeout(timer); }
+  }
 
-    if (currentController) currentController.abort();
-    currentController = new AbortController();
-    const localTimeout = setTimeout(() => currentController.abort(), 9500);
-    const started = Date.now();
-    const btn = $('searchBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span>Ищу';
-    const timer = setInterval(() => {
-      const sec = Math.max(1, Math.round((Date.now() - started) / 1000));
-      setStatus(`Проверяю НСПД и резервный кадастровый канал… ${sec} сек.`);
-    }, 900);
-    setStatus('Проверяю НСПД и резервный кадастровый канал…');
+  async function proxySearch(cn, forceLive, signal) {
+    const u = new URL(NSPD_PROXY); u.searchParams.set('cn', cn); if (forceLive) u.searchParams.set('refresh', '1');
+    const r = await fetch(u, { method: 'GET', signal, cache: 'no-store' });
+    let data = null; try { data = await r.json(); } catch (_) {}
+    if (!r.ok || !data?.ok) { const err = new Error(data?.message || `proxy_${r.status}`); err.details = data; throw err; }
+    return data;
+  }
+
+  async function firstSuccessful(tasks) {
+    return await new Promise((resolve, reject) => {
+      let left = tasks.length; const errors = [];
+      tasks.forEach(p => p.then(resolve).catch(e => { errors.push(e); if (--left === 0) reject(errors); }));
+    });
+  }
+
+  function applyScopeFallback(cn, reason = '') {
+    if (!scopeFallback || normalizeCadNumber(scopeFallback.cn) !== cn) return false;
+    const h = scopeFallback.hint; if (!h || !Number.isFinite(Number(h.lat)) || !Number.isFinite(Number(h.lon))) return false;
+    const lat = Number(h.lat), lon = Number(h.lon), zoom = Number(h.zoom) || 12;
+    clearSelectedGeometry(); clearPointAssociation(); ensureParcelsLayer(); map.setView([lat, lon], zoom, { animate: true });
+    $('infoTitle').textContent = `Район участка ${cn}`;
+    $('infoPill').textContent = 'ориентир района'; $('infoPill').className = 'pill future';
+    $('hint').textContent = `${h.label || 'Кадастровый район'}: точный контур сейчас не получен, поэтому карта переведена в нужную территорию. Это не координата участка. ${reason}`.trim();
+    renderProperties({ cadastral_number: cn, properties: {} });
+    $('copyLink').disabled = false;
+    return true;
+  }
+
+  async function searchCadNumber(rawCn, forceLive = false) {
+    const cn = normalizeCadNumber(rawCn); lastCadNumber = cn; activeSearchCn = cn; scopeFallback = null;
+    clearSelectedGeometry(); clearPointAssociation();
+    const cached = !forceLive ? cacheGet(cn) : null;
+    if (cached) { showParcel(cached, true); setStatus('Найдено из локального кэша.', 'ok'); return; }
+
+    if (currentController) currentController.abort(); currentController = new AbortController();
+    const outerTimer = setTimeout(() => currentController?.abort(), 7600);
+    const started = Date.now(), btn = $('searchBtn'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Ищу';
+    const timer = setInterval(() => { const sec = Math.max(1, Math.round((Date.now() - started) / 1000)); setStatus(`Ищу точный контур двумя сетевыми путями… ${sec} сек.`); }, 900);
+    setStatus('Ищу точный контур двумя сетевыми путями…');
 
     try {
-      const url = new URL(NSPD_PROXY);
-      url.searchParams.set('cn', cn);
-      if (forceLive) url.searchParams.set('refresh', '1');
-      const r = await fetch(url, { method: 'GET', signal: currentController.signal, cache: 'no-store' });
-      let data = null;
-      try { data = await r.json(); } catch (_) {}
-      if (!r.ok || !data?.ok) {
-        const message = data?.message || (r.status === 404 ? 'Участок не найден.' : `Источники вернули ошибку ${r.status}.`);
-        throw new Error(message);
-      }
-      cacheSet(cn, data);
-      showParcel(data, false);
-      const elapsed = ((Date.now() - started) / 1000).toFixed(1);
-      const channel = data.cache_scope === 'server' ? 'серверный кэш' : data.source === 'PKK_LEGACY' ? 'резервный канал' : 'НСПД';
-      setStatus(`Готово за ${elapsed} сек. Источник: ${channel}.`, data.stale || data.approximate ? 'warn' : 'ok');
+      const data = await firstSuccessful([
+        directNspdSearch(cn, 3200),
+        proxySearch(cn, forceLive, currentController.signal)
+      ]);
+      cacheSet(cn, data); showParcel(data, false);
+      setStatus(`Точный контур найден за ${((Date.now() - started) / 1000).toFixed(1)} сек.`, data.stale || data.approximate ? 'warn' : 'ok');
       if (window.innerWidth <= 760) $('sidebar').classList.remove('open');
-    } catch (e) {
-      const aborted = e?.name === 'AbortError';
-      const message = aborted
-        ? 'Поиск остановлен через 9.5 сек. Все каналы сейчас молчат — можно открыть участок напрямую в НСПД.'
-        : (e?.message || 'Не удалось получить участок ни одним каналом.');
-      setStatus(message, 'bad');
-      $('infoPill').textContent = 'источники недоступны';
-      $('infoPill').className = 'pill future';
-      $('hint').textContent = 'Карта продолжает работать: территориальные зоны и другие WMS-слои можно смотреть вручную. Кадастровый номер сохранён для кнопки «Открыть НСПД».';
+    } catch (errors) {
+      const list = Array.isArray(errors) ? errors : [errors];
+      const details = list.map(e => e?.details).find(Boolean);
+      const reason = details?.error === 'upstream_blocked' ? 'Серверный путь к НСПД сейчас блокируется источником.' : 'Онлайн-поиск точной геометрии временно недоступен.';
+      if (!applyScopeFallback(cn, reason)) {
+        $('infoTitle').textContent = `Участок ${cn}`;
+        $('infoPill').textContent = 'точный контур не получен'; $('infoPill').className = 'pill future';
+        $('hint').textContent = `${reason} Это не означает отсутствие участка. Реестр ПЗЗ/генплана и проектные документы продолжают обрабатываться независимо.`;
+      }
+      setStatus('Точный контур пока не получен. Работа по территории продолжается — это не блокирующая ошибка.', 'warn');
+      $('copyLink').disabled = false;
     } finally {
-      clearTimeout(localTimeout);
-      clearInterval(timer);
-      btn.disabled = false;
-      btn.textContent = 'Найти';
-      currentController = null;
+      clearTimeout(outerTimer); clearInterval(timer); btn.disabled = false; btn.textContent = 'Найти'; currentController = null; activeSearchCn = null;
     }
   }
 
   async function runSearch() {
-    const q = $('query').value.trim();
-    if (!q) return setStatus('Введите кадастровый номер или координаты.', 'warn');
+    const q = $('query').value.trim(); if (!q) return setStatus('Введите кадастровый номер или координаты.', 'warn');
     const coords = parseCoords(q);
     if (coords) {
-      clearSelectedGeometry();
-      lastCadNumber = null;
-      map.setView(coords, 17);
-      setPoint(coords[0], coords[1]);
-      renderProperties({});
-      $('copyLink').disabled = true;
-      setStatus('Переход по координатам выполнен.', 'ok');
-      return;
+      clearSelectedGeometry(); lastCadNumber = null; activeSearchCn = null; scopeFallback = null;
+      map.setView(coords, 17); setPoint(coords[0], coords[1]); renderProperties({}); $('copyLink').disabled = true; setStatus('Переход по координатам выполнен.', 'ok'); return;
     }
     if (!isCadNumber(q)) return setStatus('Не распознал формат. Пример: 25:36:050101:2652', 'warn');
     await searchCadNumber(q);
   }
 
-  function lonLatToMercator(lon, lat) {
-    const R = 6378137;
-    const x = R * lon * Math.PI / 180;
-    const y = R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
-    return [x, y];
-  }
+  function lonLatToMercator(lon, lat) { const R = 6378137; return [R * lon * Math.PI / 180, R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360))]; }
 
-  document.querySelectorAll('[data-layer]').forEach(cb => cb.addEventListener('change', () => {
-    const layer = layers[cb.dataset.layer];
-    if (!layer) return;
-    cb.checked ? layer.addTo(map) : map.removeLayer(layer);
-  }));
-
-  $('opacity').addEventListener('input', (e) => {
-    const v = Number(e.target.value) / 100;
-    $('opacityValue').textContent = `${e.target.value}%`;
-    Object.values(layers).forEach(layer => {
-      if (layer.setOpacity) layer.setOpacity(v);
-      if (layer.eachLayer) layer.eachLayer(x => x.setOpacity && x.setOpacity(v));
-    });
+  window.addEventListener('landhorizon:scope', e => {
+    const d = e.detail || {}, cn = normalizeCadNumber(d.cn);
+    if (!cn || !d.scope_hint) return;
+    scopeFallback = { cn, hint: d.scope_hint };
+    if (lastCadNumber === cn && !selectedGeo && !coordsCadNumber && !activeSearchCn) applyScopeFallback(cn);
   });
 
+  document.querySelectorAll('[data-layer]').forEach(cb => cb.addEventListener('change', () => {
+    const layer = layers[cb.dataset.layer]; if (!layer) return; cb.checked ? layer.addTo(map) : map.removeLayer(layer);
+  }));
+  $('opacity').addEventListener('input', e => {
+    const v = Number(e.target.value) / 100; $('opacityValue').textContent = `${e.target.value}%`;
+    Object.values(layers).forEach(layer => { if (layer.setOpacity) layer.setOpacity(v); if (layer.eachLayer) layer.eachLayer(x => x.setOpacity && x.setOpacity(v)); });
+  });
   $('searchBtn').addEventListener('click', runSearch);
   $('query').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
   map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng));
 
-  $('copyCoords').addEventListener('click', async () => {
-    if (!lastCoords) return;
-    await navigator.clipboard.writeText(`${lastCoords[0].toFixed(6)}, ${lastCoords[1].toFixed(6)}`);
-    setStatus('Координаты скопированы.', 'ok');
-  });
-
-  $('copyLink').addEventListener('click', async () => {
-    if (!lastCadNumber) return;
-    const u = new URL(location.href); u.searchParams.set('cn', lastCadNumber);
-    await navigator.clipboard.writeText(u.toString());
-    setStatus('Ссылка на этот участок скопирована.', 'ok');
-  });
-
+  $('copyCoords').addEventListener('click', async () => { if (!lastCoords) return; await navigator.clipboard.writeText(`${lastCoords[0].toFixed(6)}, ${lastCoords[1].toFixed(6)}`); setStatus('Координаты скопированы.', 'ok'); });
+  $('copyLink').addEventListener('click', async () => { if (!lastCadNumber) return; const u = new URL(location.href); u.searchParams.set('cn', lastCadNumber); await navigator.clipboard.writeText(u.toString()); setStatus('Ссылка на этот кадастровый номер скопирована.', 'ok'); });
   $('openNspd').addEventListener('click', () => {
     let url = 'https://nspd.gov.ru/map?thematic=PKK';
     if (lastCadNumber) url += `&query=${encodeURIComponent(lastCadNumber)}`;
-    if (lastCoords) {
-      const [x, y] = lonLatToMercator(lastCoords[1], lastCoords[0]);
+    if (lastCoords && (!lastCadNumber || coordsCadNumber === lastCadNumber)) {
+      const [x,y] = lonLatToMercator(lastCoords[1], lastCoords[0]);
       url += `&zoom=18.2&coordinate_x=${encodeURIComponent(x)}&coordinate_y=${encodeURIComponent(y)}&theme_id=1&baseLayerId=235&is_copy_url=true`;
     }
     window.open(url, '_blank', 'noopener');
   });
-
   $('fitSelected').addEventListener('click', () => {
-    if (selectedGeo) {
-      const b = selectedGeo.getBounds();
-      if (b?.isValid()) map.fitBounds(b.pad(0.35), { maxZoom: 18 });
-    }
+    if (selectedGeo) { const b = selectedGeo.getBounds(); if (b?.isValid()) map.fitBounds(b.pad(0.35), { maxZoom: 18 }); }
+    else if (lastCadNumber) applyScopeFallback(lastCadNumber);
   });
-
   $('mobileToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
-  $('currentMode').addEventListener('click', () => setStatus('Показываю действующие слои НСПД.', 'ok'));
-  $('compareMode').addEventListener('click', () => setStatus('Режим сравнения включим после первого автоматического источника проектов ПЗЗ/Генплана.', 'warn'));
+  $('currentMode').addEventListener('click', () => setStatus('Показываю действующие доступные слои. Их фактическая доступность проверяется по загрузке тайлов.', 'ok'));
+  $('compareMode').addEventListener('click', () => setStatus('Сравнение включим только после фильтрации и геопривязки проектных документов. Ложные совпадения в этот режим не допускаются.', 'warn'));
 
   const initial = new URL(location.href).searchParams.get('cn');
-  if (initial && isCadNumber(initial)) {
-    $('query').value = initial;
-    setTimeout(() => searchCadNumber(initial), 250);
-  }
-
+  if (initial && isCadNumber(initial)) { $('query').value = normalizeCadNumber(initial); setTimeout(() => searchCadNumber(initial), 250); }
+  setTimeout(() => { if (!wmsHealth.settled && $('wmsStatus')) $('wmsStatus').textContent = 'нет подтверждения'; }, 7000);
   console.info(`Land Horizon Map v${VERSION}`);
 })();
