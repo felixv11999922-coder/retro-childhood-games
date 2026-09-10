@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.3';
+  const VERSION = '0.4';
   const NSPD_PROXY = 'https://kexfusnwcxqbshpwlshx.supabase.co/functions/v1/nspd-search';
   const CACHE_PREFIX = 'land-horizon:nspd:';
   const CACHE_TTL = 12 * 60 * 60 * 1000;
@@ -71,6 +71,17 @@
     else marker = L.marker([lat, lng]).addTo(map);
   }
 
+  function setLayerCheckbox(name, enabled) {
+    const cb = document.querySelector(`[data-layer="${name}"]`);
+    if (!cb) return;
+    cb.checked = enabled;
+  }
+
+  function ensureParcelsLayer() {
+    if (!map.hasLayer(layers.parcels)) layers.parcels.addTo(map);
+    setLayerCheckbox('parcels', true);
+  }
+
   function clearSelectedGeometry() {
     if (selectedGeo) {
       map.removeLayer(selectedGeo);
@@ -87,35 +98,63 @@
     return null;
   }
 
-  function showParcel(data, fromCache = false) {
+  function sourceLabel(data, fromLocalCache) {
+    if (fromLocalCache) return 'кэш iPad';
+    if (data.cache_scope === 'server') return 'кэш сервера';
+    if (data.cache_scope === 'server-stale') return 'старый кэш';
+    if (data.source === 'PKK_LEGACY') return 'резерв';
+    return 'НСПД';
+  }
+
+  function showParcel(data, fromLocalCache = false) {
     clearSelectedGeometry();
-    lastCadNumber = data.cadastral_number || null;
+    lastCadNumber = data.cadastral_number || lastCadNumber || null;
+
+    if (data.approximate) ensureParcelsLayer();
 
     if (data.geometry) {
+      const isApprox = !!data.approximate;
       selectedGeo = L.geoJSON({ type: 'Feature', properties: data.properties || {}, geometry: data.geometry }, {
-        style: { weight: 4, opacity: 1, fillOpacity: 0.12, dashArray: '8 5' },
-        pointToLayer: (_feature, latlng) => L.circleMarker(latlng, { radius: 7, weight: 3, fillOpacity: 0.25 })
+        style: {
+          weight: isApprox ? 2 : 4,
+          opacity: 1,
+          fillOpacity: isApprox ? 0.04 : 0.12,
+          dashArray: isApprox ? '4 6' : '8 5'
+        },
+        pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {
+          radius: isApprox ? 9 : 7,
+          weight: isApprox ? 2 : 3,
+          fillOpacity: isApprox ? 0.12 : 0.25
+        })
       }).addTo(map);
 
       const b = selectedGeo.getBounds();
       if (b && b.isValid()) {
-        map.fitBounds(b.pad(0.35), { maxZoom: 18, animate: true });
+        map.fitBounds(b.pad(data.approximate ? 1.2 : 0.35), { maxZoom: data.approximate ? 17 : 18, animate: true });
         const c = b.getCenter();
         setPoint(c.lat, c.lng, `Участок ${lastCadNumber || ''}`.trim());
       } else {
         const c = centerOfGeometry(data.geometry);
         if (c) {
-          map.setView(c, 18);
+          map.setView(c, data.approximate ? 17 : 18);
           setPoint(c.lat, c.lng, `Участок ${lastCadNumber || ''}`.trim());
         }
       }
     }
 
-    $('infoPill').textContent = fromCache ? 'кэш' : 'НСПД';
-    $('infoPill').className = 'pill ok';
-    $('hint').textContent = fromCache
-      ? 'Контур загружен мгновенно из локального кэша. Онлайн-слои НСПД продолжают отображаться поверх карты.'
-      : 'Контур получен через серверный посредник. Браузер больше не ждёт прямой ответ НСПД бесконечно.';
+    $('infoPill').textContent = sourceLabel(data, fromLocalCache);
+    $('infoPill').className = data.stale || data.approximate ? 'pill future' : 'pill ok';
+
+    if (data.stale) {
+      $('hint').textContent = 'НСПД сейчас не ответила, поэтому показана последняя сохранённая сервером версия. Для проверки актуальности используйте онлайн-слои НСПД.';
+    } else if (data.approximate) {
+      $('hint').textContent = 'НСПД не дала точную геометрию, поэтому использован резервный кадастровый канал. Маркер/рамка ориентировочные; слой «Земельные участки ЕГРН» включён автоматически для визуальной проверки.';
+    } else if (fromLocalCache || data.cache_scope === 'server') {
+      $('hint').textContent = 'Участок взят из кэша без повторного ожидания НСПД. Онлайн-слои продолжают загружаться непосредственно с НСПД.';
+    } else {
+      $('hint').textContent = 'Точный контур получен через серверный поиск НСПД и сохранён в общий кэш для следующих запросов.';
+    }
+
     renderProperties(data);
     $('copyLink').disabled = !lastCadNumber;
 
@@ -149,13 +188,17 @@
     const box = $('props');
     box.innerHTML = '';
     const entries = flattenEntries(data.properties || {});
+    const source = data.source === 'PKK_LEGACY' ? 'Резервная ПКК' : 'НСПД';
+    const accuracy = data.approximate ? 'ориентировочно' : 'точная геометрия источника';
     const rows = [
       ['Кадастровый №', data.cadastral_number],
       ['Адрес', findValue(entries, ['address_readable','readable_address','address','object_address','location'])],
       ['Площадь', findValue(entries, ['specified_area','land_record_area','area','area_value','area_zu'])],
       ['Категория', findValue(entries, ['land_record_category_type','category_type','category','land_category'])],
       ['ВРИ', findValue(entries, ['permitted_use_established_by_document','util_by_doc','permitted_use','util_code','use_type'])],
-      ['Статус', findValue(entries, ['status','object_status','state'])]
+      ['Статус', findValue(entries, ['status','object_status','state','statecd'])],
+      ['Источник поиска', source],
+      ['Геометрия', accuracy]
     ].filter(([,v]) => v !== null && v !== undefined && String(v).trim() !== '');
 
     for (const [k, v] of rows) {
@@ -186,46 +229,53 @@
   }
 
   async function searchCadNumber(cn, forceLive = false) {
+    lastCadNumber = cn;
     const cached = !forceLive ? cacheGet(cn) : null;
     if (cached) {
       showParcel(cached, true);
-      setStatus('Найдено мгновенно из кэша. Для обновления нажмите «Найти» ещё раз через 12 часов.', 'ok');
+      setStatus('Найдено мгновенно из локального кэша.', 'ok');
       return;
     }
 
     if (currentController) currentController.abort();
     currentController = new AbortController();
-    const localTimeout = setTimeout(() => currentController.abort(), 10000);
+    const localTimeout = setTimeout(() => currentController.abort(), 9500);
     const started = Date.now();
     const btn = $('searchBtn');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Ищу';
     const timer = setInterval(() => {
       const sec = Math.max(1, Math.round((Date.now() - started) / 1000));
-      setStatus(`Запрашиваю НСПД через сервер… ${sec} сек.`);
+      setStatus(`Проверяю НСПД и резервный кадастровый канал… ${sec} сек.`);
     }, 900);
-    setStatus('Запрашиваю НСПД через сервер…');
+    setStatus('Проверяю НСПД и резервный кадастровый канал…');
 
     try {
       const url = new URL(NSPD_PROXY);
       url.searchParams.set('cn', cn);
+      if (forceLive) url.searchParams.set('refresh', '1');
       const r = await fetch(url, { method: 'GET', signal: currentController.signal, cache: 'no-store' });
       let data = null;
       try { data = await r.json(); } catch (_) {}
       if (!r.ok || !data?.ok) {
-        const message = data?.message || (r.status === 404 ? 'Участок не найден в НСПД.' : `НСПД вернула ошибку ${r.status}.`);
+        const message = data?.message || (r.status === 404 ? 'Участок не найден.' : `Источники вернули ошибку ${r.status}.`);
         throw new Error(message);
       }
       cacheSet(cn, data);
       showParcel(data, false);
       const elapsed = ((Date.now() - started) / 1000).toFixed(1);
-      setStatus(`Готово за ${elapsed} сек. Контур участка получен.`, 'ok');
+      const channel = data.cache_scope === 'server' ? 'серверный кэш' : data.source === 'PKK_LEGACY' ? 'резервный канал' : 'НСПД';
+      setStatus(`Готово за ${elapsed} сек. Источник: ${channel}.`, data.stale || data.approximate ? 'warn' : 'ok');
       if (window.innerWidth <= 760) $('sidebar').classList.remove('open');
     } catch (e) {
       const aborted = e?.name === 'AbortError';
-      setStatus(aborted ? 'НСПД не ответила за 10 секунд. Попробуйте ещё раз — страница больше не зависает.' : (e?.message || 'Не удалось получить участок.'), 'bad');
-      $('infoPill').textContent = 'ошибка';
+      const message = aborted
+        ? 'Поиск остановлен через 9.5 сек. Все каналы сейчас молчат — можно открыть участок напрямую в НСПД.'
+        : (e?.message || 'Не удалось получить участок ни одним каналом.');
+      setStatus(message, 'bad');
+      $('infoPill').textContent = 'источники недоступны';
       $('infoPill').className = 'pill future';
+      $('hint').textContent = 'Карта продолжает работать: территориальные зоны и другие WMS-слои можно смотреть вручную. Кадастровый номер сохранён для кнопки «Открыть НСПД».';
     } finally {
       clearTimeout(localTimeout);
       clearInterval(timer);
@@ -294,6 +344,7 @@
 
   $('openNspd').addEventListener('click', () => {
     let url = 'https://nspd.gov.ru/map?thematic=PKK';
+    if (lastCadNumber) url += `&query=${encodeURIComponent(lastCadNumber)}`;
     if (lastCoords) {
       const [x, y] = lonLatToMercator(lastCoords[1], lastCoords[0]);
       url += `&zoom=18.2&coordinate_x=${encodeURIComponent(x)}&coordinate_y=${encodeURIComponent(y)}&theme_id=1&baseLayerId=235&is_copy_url=true`;
