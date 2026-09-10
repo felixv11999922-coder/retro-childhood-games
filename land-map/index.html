@@ -8,13 +8,14 @@
   <title>Земельный горизонт — Карта</title>
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="./styles.css?v=0.4" />
+  <link rel="stylesheet" href="./styles.css?v=0.5" />
+  <link rel="stylesheet" href="./planning.css?v=0.5" />
 </head>
 <body>
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <h1>Земельный горизонт — Карта <span class="version">v0.4</span></h1>
+      <h1>Земельный горизонт — Карта <span class="version">v0.5</span></h1>
       <p>Кадастровые, градостроительные и проектные данные на одной карте.</p>
     </div>
 
@@ -23,7 +24,7 @@
         <input id="query" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="25:36:050101:2652" />
         <button id="searchBtn">Найти</button>
       </div>
-      <div id="searchStatus" class="status">Поиск идёт каскадом: кэш → быстрый НСПД → резервный кадастровый канал → широкий НСПД.</div>
+      <div id="searchStatus" class="status">Контур ищется через несколько кадастровых каналов. Градостроительные источники определяются отдельно.</div>
     </div>
 
     <div class="scroll">
@@ -59,7 +60,21 @@
         </div>
         <div class="layer">
           <input type="checkbox" disabled />
-          <span class="layer-main"><div class="layer-name">ППТ / ПМТ / КРТ</div><div class="layer-note">Следующий источник автоматического сбора</div></span>
+          <span class="layer-main"><div class="layer-name">ППТ / ПМТ / КРТ</div><div class="layer-note">Автосбор официальных документов уже подключается по муниципалитетам</div></span>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><span>Источники по территории</span><span class="pill">авто</span></div>
+        <div id="planningSources" class="planning-box">
+          <div class="planning-note">Введите кадастровый номер — система сама определит региональные и муниципальные градостроительные источники.</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><span>Найденные документы</span><span class="pill future">робот</span></div>
+        <div id="projectCandidates" class="planning-box">
+          <div class="planning-note">Сюда будут попадать проекты ПЗЗ, генплана, ППТ, ПМТ и КРТ, найденные роботом на официальных сайтах.</div>
         </div>
       </section>
 
@@ -88,7 +103,7 @@
         <span class="pill" id="infoPill">готово</span>
       </div>
       <div class="coords" id="coords">Нажмите на карту или найдите участок по кадастровому номеру.</div>
-      <div class="hint" id="hint">После поиска контур участка подсветится отдельно и карта приблизится к нему.</div>
+      <div class="hint" id="hint">Даже если НСПД не отвечает, определение градостроительных источников по кадастровому району продолжает работать.</div>
       <div id="props" class="props"></div>
       <div class="info-actions">
         <button class="secondary" id="fitSelected">К участку</button>
@@ -99,7 +114,8 @@
       <div class="source-status">
         <span><i class="dot"></i>Поиск кадастрового номера</span><b>3 канала + кэш</b>
         <span><i class="dot"></i>НСПД WMS: ТЗ / участки / красные линии / ЗОУИТ</span><b>подключено</b>
-        <span><i class="dot future"></i>ФГИС ТП / ГИСОГД / проекты</span><b>следующий этап</b>
+        <span><i class="dot"></i>Реестр ФГИС ТП / ГИСОГД / муниципалитетов</span><b>подключено</b>
+        <span><i class="dot future"></i>Наложение проектной геометрии</span><b>следующий этап</b>
       </div>
     </div>
   </main>
@@ -107,5 +123,6 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="./app.js?v=0.4"></script>
+<script src="./planning.js?v=0.5"></script>
 </body>
 </html>
