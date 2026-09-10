@@ -52,12 +52,17 @@ jobs:
           print(f"candidate data OK: {len(data['candidates'])} rows")
           PY
 
-      - name: Validate entrypoint references
+      - name: Validate entrypoint and proxy architecture
         run: |
           python - <<'PY'
           from pathlib import Path
           html = Path('land-map/index.html').read_text('utf-8')
-          for required in ('app.js?v=0.6.1', 'planning.js?v=0.6.1', 'id="map"', 'id="planningSources"'):
+          app = Path('land-map/app.js').read_text('utf-8')
+          for required in ('app.js?v=0.7.0', 'planning.js?v=0.7.0', 'id="map"', 'id="planningSources"'):
               assert required in html, f'missing entrypoint/reference: {required}'
-          print('entrypoint references OK')
+          assert "const VERSION = '0.7.0'" in app, 'app version mismatch'
+          assert '/nspd-wms' in app, 'WMS proxy is missing'
+          assert 'https://nspd.gov.ru/api/aeggis/v3/${id}/wms' not in app, 'direct browser WMS regression detected'
+          assert 'GetFeatureInfo' in app, 'parcel identify fallback is missing'
+          print('entrypoint/proxy architecture OK')
           PY
