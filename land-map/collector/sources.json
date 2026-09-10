@@ -1,0 +1,17 @@
+{
+  "scopes": [
+    {
+      "region_code": "25",
+      "cadastral_district": "36",
+      "municipality": "Большой Камень",
+      "sources": [
+        {
+          "name": "Официальное опубликование ГО Большой Камень",
+          "base_url": "https://xn--80azg.xn--80anwp.xn--80asehdb/",
+          "search_mode": "wordpress_query",
+          "official": true
+        }
+      ]
+    }
+  ]
+}
