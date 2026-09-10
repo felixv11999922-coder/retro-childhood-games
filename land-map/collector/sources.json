@@ -8,7 +8,7 @@
         {
           "name": "Официальное опубликование ГО Большой Камень",
           "base_url": "https://xn--80azg.xn--80anwp.xn--80asehdb/",
-          "search_mode": "wordpress_query",
+          "search_mode": "wordpress_rest",
           "official": true,
           "tls_verify": false,
           "transport_note": "На 10.09.2026 официальный сайт отдаёт TLS-сертификат с несовпадающим hostname; результаты требуют подтверждения вторым официальным источником."
