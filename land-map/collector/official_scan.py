@@ -64,10 +64,14 @@ def classify(value: str) -> str | None:
 
 def status(value: str) -> str:
     low = value.lower()
-    if any(x in low for x in ("общественн", "публичн", "проект", "экспозиц")):
-        return "draft"
-    if any(x in low for x in ("об утверждении", "о внесении изменений", "внести изменения", "утвердить")):
+    # Approval language wins over the word "project" inside an approved PPT/PMT title.
+    if any(x in low for x in (
+        "об утверждении", "утвердить", "утвержден", "утверждён",
+        "о внесении изменений", "внести изменения",
+    )):
         return "active_or_approved"
+    if any(x in low for x in ("общественн", "публичн", "экспозиц", "проект решения", "проект постановления")):
+        return "draft"
     return "candidate"
 
 
@@ -75,7 +79,7 @@ def fetch(url: str, timeout: float = 12, verify_tls: bool = True) -> str | None:
     req = Request(
         url,
         headers={
-            "User-Agent": "Mozilla/5.0 (compatible; LandHorizonMapCollector/0.6)",
+            "User-Agent": "Mozilla/5.0 (compatible; LandHorizonMapCollector/0.7)",
             "Accept": "application/json,text/html,application/xhtml+xml,application/xml,text/xml,*/*",
             "Accept-Language": "ru-RU,ru;q=0.9",
         },
@@ -104,8 +108,19 @@ def transport_fields(source: dict) -> dict:
     }
 
 
-def candidate(scope: dict, source: dict, title: str, url: str, combined: str, published: str | None) -> dict | None:
-    kind = classify(combined)
+def make_candidate(
+    scope: dict,
+    source: dict,
+    title: str,
+    url: str,
+    combined: str,
+    published: str | None,
+    *,
+    kind_hint: str | None = None,
+    matched_query: str | None = None,
+) -> dict | None:
+    content_kind = classify(combined)
+    kind = content_kind or kind_hint
     if not kind:
         return None
     return {
@@ -114,6 +129,8 @@ def candidate(scope: dict, source: dict, title: str, url: str, combined: str, pu
         "municipality": scope.get("municipality"),
         "doc_type": kind,
         "doc_status": status(combined),
+        "classification_basis": "content" if content_kind else "search_query",
+        "matched_queries": [matched_query] if matched_query else [],
         "title": title[:300],
         "document_url": url,
         "published_at": published,
@@ -122,6 +139,31 @@ def candidate(scope: dict, source: dict, title: str, url: str, combined: str, pu
         "snippet": combined[:700],
         **transport_fields(source),
     }
+
+
+def merge_candidate(found: dict[str, dict], item: dict) -> None:
+    url = item["document_url"]
+    old = found.get(url)
+    if not old:
+        found[url] = item
+        return
+    queries = list(dict.fromkeys([*(old.get("matched_queries") or []), *(item.get("matched_queries") or [])]))
+    old["matched_queries"] = queries
+    # Prefer classification grounded in the returned document text.
+    if old.get("classification_basis") != "content" and item.get("classification_basis") == "content":
+        item["matched_queries"] = queries
+        found[url] = item
+        return
+    # If only search-query hints disagree, keep the record but mark it for review.
+    if (
+        old.get("classification_basis") == "search_query"
+        and item.get("classification_basis") == "search_query"
+        and old.get("doc_type") != item.get("doc_type")
+    ):
+        old["doc_type"] = "REVIEW"
+        old["classification_basis"] = "ambiguous_search_queries"
+    if len(item.get("snippet", "")) > len(old.get("snippet", "")):
+        old["snippet"] = item["snippet"]
 
 
 def candidates_from_html(html: str, source: dict, scope: dict) -> Iterable[dict]:
@@ -139,7 +181,7 @@ def candidates_from_html(html: str, source: dict, scope: dict) -> Iterable[dict]
         combined = f"{title} {context}"
         dm = DATE_RE.search(context)
         published = f"{dm.group(3)}-{dm.group(2)}-{dm.group(1)}" if dm else None
-        item = candidate(scope, source, title, absolute, combined, published)
+        item = make_candidate(scope, source, title, absolute, combined, published)
         if item:
             yield item
 
@@ -148,7 +190,12 @@ def wordpress_rest(scope: dict, source: dict) -> list[dict]:
     verify_tls = bool(source.get("tls_verify", True))
     found: dict[str, dict] = {}
     for query in QUERIES:
-        params = urlencode({"search": query, "per_page": 100, "_fields": "id,date,link,title,excerpt,content"})
+        hint = classify(query)
+        params = urlencode({
+            "search": query,
+            "per_page": 100,
+            "_fields": "id,date,link,title,excerpt,content",
+        })
         url = urljoin(source["base_url"], f"wp-json/wp/v2/posts?{params}")
         raw = fetch(url, verify_tls=verify_tls)
         if not raw:
@@ -167,17 +214,29 @@ def wordpress_rest(scope: dict, source: dict) -> list[dict]:
             title = text((row.get("title") or {}).get("rendered", ""))
             excerpt = text((row.get("excerpt") or {}).get("rendered", ""))
             content = text((row.get("content") or {}).get("rendered", ""))
-            combined = f"{title} {excerpt} {content}"
+            combined = f"{title} {excerpt} {content}".strip()
             if not target or not same_host(source["base_url"], target):
                 continue
             published = None
             dm = ISO_DATE_RE.match(str(row.get("date") or ""))
             if dm:
                 published = f"{dm.group(1)}-{dm.group(2)}-{dm.group(3)}"
-            item = candidate(scope, source, title or combined[:120], target, combined, published)
+            item = make_candidate(
+                scope,
+                source,
+                title or combined[:120] or target,
+                target,
+                combined,
+                published,
+                kind_hint=hint,
+                matched_query=query,
+            )
             if item:
-                found[target] = item
+                merge_candidate(found, item)
         time.sleep(0.2)
+    print("REST titles/types:")
+    for item in list(found.values())[:20]:
+        print(f"  {item['doc_type']} [{item['classification_basis']}] {item['title'][:120]}")
     return list(found.values())
 
 
@@ -225,7 +284,6 @@ def scan_sitemap(scope: dict, source: dict) -> list[dict]:
     found: dict[str, dict] = {}
     urls = sitemap_urls(source)
     print(f"Sitemap page URLs: {len(urls)}")
-    # First use URL text as a cheap filter; then inspect a bounded number of recent/content pages.
     likely = [u for u in urls if classify(u.replace("-", " ").replace("_", " "))]
     inspect = (likely + [u for u in urls if u not in likely])[-120:]
     for target in inspect:
@@ -233,16 +291,15 @@ def scan_sitemap(scope: dict, source: dict) -> list[dict]:
         if not html:
             continue
         page_text = text(html)
-        kind = classify(page_text)
-        if not kind:
+        if not classify(page_text):
             continue
         title_match = re.search(r"<title[^>]*>([\s\S]*?)</title>", html, re.I)
         title = text(title_match.group(1)) if title_match else page_text[:140]
         dm = DATE_RE.search(page_text)
         published = f"{dm.group(3)}-{dm.group(2)}-{dm.group(1)}" if dm else None
-        item = candidate(scope, source, title, target, page_text, published)
+        item = make_candidate(scope, source, title, target, page_text, published)
         if item:
-            found[target] = item
+            merge_candidate(found, item)
         time.sleep(0.08)
     return list(found.values())
 
@@ -258,9 +315,7 @@ def html_search(scope: dict, source: dict) -> list[dict]:
         if not raw:
             continue
         for item in candidates_from_html(raw, source, scope):
-            old = found.get(item["document_url"])
-            if old is None or len(item.get("snippet", "")) > len(old.get("snippet", "")):
-                found[item["document_url"]] = item
+            merge_candidate(found, item)
         time.sleep(0.2)
     return list(found.values())
 
@@ -274,18 +329,18 @@ def scan_source(scope: dict, source: dict) -> list[dict]:
     found: dict[str, dict] = {}
     if mode == "wordpress_rest":
         for item in wordpress_rest(scope, source):
-            found[item["document_url"]] = item
+            merge_candidate(found, item)
         if not found:
             print("REST returned no classified candidates; trying sitemap")
             for item in scan_sitemap(scope, source):
-                found[item["document_url"]] = item
+                merge_candidate(found, item)
         if not found:
             print("Sitemap returned no classified candidates; trying HTML search")
             for item in html_search(scope, source):
-                found[item["document_url"]] = item
+                merge_candidate(found, item)
     else:
         for item in html_search(scope, source):
-            found[item["document_url"]] = item
+            merge_candidate(found, item)
     return list(found.values())
 
 
@@ -294,7 +349,11 @@ def load_existing() -> dict[str, dict]:
         return {}
     try:
         payload = json.loads(OUT_FILE.read_text("utf-8"))
-        return {item["document_url"]: item for item in payload.get("candidates", []) if item.get("document_url")}
+        return {
+            item["document_url"]: item
+            for item in payload.get("candidates", [])
+            if item.get("document_url")
+        }
     except Exception:
         return {}
 
@@ -315,8 +374,15 @@ def main() -> None:
                 merged[item["document_url"]] = item
 
     rows = list(merged.values())
-    rows.sort(key=lambda r: (r.get("published_at") or "", r.get("last_seen_at") or ""), reverse=True)
-    payload = {"generated_at": now, "count": len(rows), "candidates": rows[:500]}
+    rows.sort(
+        key=lambda r: (r.get("published_at") or "", r.get("last_seen_at") or ""),
+        reverse=True,
+    )
+    payload = {
+        "generated_at": now,
+        "count": len(rows),
+        "candidates": rows[:500],
+    }
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     OUT_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", "utf-8")
     print(f"Saved {len(payload['candidates'])} candidates to {OUT_FILE}")
