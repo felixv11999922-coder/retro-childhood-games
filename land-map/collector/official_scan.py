@@ -64,7 +64,6 @@ def classify(value: str) -> str | None:
 
 def status(value: str) -> str:
     low = value.lower()
-    # Approval language wins over the word "project" inside an approved PPT/PMT title.
     if any(x in low for x in (
         "об утверждении", "утвердить", "утвержден", "утверждён",
         "о внесении изменений", "внести изменения",
@@ -79,7 +78,7 @@ def fetch(url: str, timeout: float = 12, verify_tls: bool = True) -> str | None:
     req = Request(
         url,
         headers={
-            "User-Agent": "Mozilla/5.0 (compatible; LandHorizonMapCollector/0.7)",
+            "User-Agent": "Mozilla/5.0 (compatible; LandHorizonMapCollector/0.8)",
             "Accept": "application/json,text/html,application/xhtml+xml,application/xml,text/xml,*/*",
             "Accept-Language": "ru-RU,ru;q=0.9",
         },
@@ -96,8 +95,18 @@ def fetch(url: str, timeout: float = 12, verify_tls: bool = True) -> str | None:
         return None
 
 
+def host_key(url: str) -> str:
+    host = (urlparse(url).hostname or "").strip().lower().rstrip(".")
+    if not host:
+        return ""
+    try:
+        return host.encode("idna").decode("ascii").lower()
+    except UnicodeError:
+        return host
+
+
 def same_host(base: str, target: str) -> bool:
-    return urlparse(base).hostname == urlparse(target).hostname
+    return bool(host_key(base)) and host_key(base) == host_key(target)
 
 
 def transport_fields(source: dict) -> dict:
@@ -149,12 +158,10 @@ def merge_candidate(found: dict[str, dict], item: dict) -> None:
         return
     queries = list(dict.fromkeys([*(old.get("matched_queries") or []), *(item.get("matched_queries") or [])]))
     old["matched_queries"] = queries
-    # Prefer classification grounded in the returned document text.
     if old.get("classification_basis") != "content" and item.get("classification_basis") == "content":
         item["matched_queries"] = queries
         found[url] = item
         return
-    # If only search-query hints disagree, keep the record but mark it for review.
     if (
         old.get("classification_basis") == "search_query"
         and item.get("classification_basis") == "search_query"
