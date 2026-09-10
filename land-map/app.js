@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.6';
+  const VERSION = '0.6.1';
   const NSPD_PROXY = 'https://kexfusnwcxqbshpwlshx.supabase.co/functions/v1/nspd-search';
   const CACHE_PREFIX = 'land-horizon:nspd:';
   const CACHE_TTL = 12 * 60 * 60 * 1000;
@@ -63,7 +63,8 @@
   let coordsCadNumber = null;
   let currentController = null;
   let activeSearchCn = null;
-  let scopeFallback = null;
+  let searchSequence = 0;
+  const scopeHints = new Map();
 
   function setStatus(text, cls = '') {
     $('searchStatus').className = `status ${cls}`;
@@ -121,7 +122,8 @@
     if (data.cache_scope === 'server-stale') return 'старый кэш';
     if (data.source === 'PKK_LEGACY') return 'резервная ПКК';
     if (data.source === 'NSPD_DIRECT') return 'НСПД · браузер';
-    return 'НСПД';
+    if (data.source === 'NSPD') return 'НСПД';
+    return null;
   }
 
   function showParcel(data, fromLocalCache = false) {
@@ -129,7 +131,6 @@
     const cn = normalizeCadNumber(data.cadastral_number || lastCadNumber);
     lastCadNumber = cn || lastCadNumber;
     activeSearchCn = null;
-    scopeFallback = null;
 
     if (data.approximate) ensureParcelsLayer();
     if (data.geometry) {
@@ -146,7 +147,7 @@
       }
     }
 
-    $('infoPill').textContent = sourceLabel(data, fromLocalCache);
+    $('infoPill').textContent = sourceLabel(data, fromLocalCache) || 'источник';
     $('infoPill').className = data.stale || data.approximate ? 'pill future' : 'pill ok';
     if (data.stale) $('hint').textContent = 'Онлайн-поиск НСПД сейчас не ответил; показана последняя сохранённая версия. Проектные источники проверяются независимо.';
     else if (data.approximate) $('hint').textContent = 'Показан ориентир резервного источника. Для юридически значимой работы точную геометрию нужно подтвердить НСПД/ЕГРН.';
@@ -181,7 +182,6 @@
   function renderProperties(data) {
     const box = $('props'); box.innerHTML = '';
     const entries = flattenEntries(data.properties || {});
-    const source = sourceLabel(data, false);
     const rows = [
       ['Кадастровый №', data.cadastral_number],
       ['Адрес', findValue(entries, ['address_readable','readable_address','address','object_address','location'])],
@@ -189,9 +189,9 @@
       ['Категория', findValue(entries, ['land_record_category_type','category_type','category','land_category'])],
       ['ВРИ', findValue(entries, ['permitted_use_established_by_document','util_by_doc','permitted_use','util_code','use_type'])],
       ['Статус', findValue(entries, ['status','object_status','state','statecd'])],
-      ['Источник поиска', source],
-      ['Геометрия', data.approximate ? 'ориентировочная' : 'точная геометрия источника']
-    ].filter(([,v]) => v !== null && v !== undefined && String(v).trim() !== '');
+      data.source || data.cache_scope ? ['Источник поиска', sourceLabel(data, false)] : null,
+      data.geometry || data.geometry_quality ? ['Геометрия', data.approximate ? 'ориентировочная' : 'точная геометрия источника'] : null
+    ].filter(Boolean).filter(([,v]) => v !== null && v !== undefined && String(v).trim() !== '');
     for (const [k,v] of rows) {
       const row = document.createElement('div'); row.className = 'prop';
       const key = document.createElement('div'); key.className = 'k'; key.textContent = k;
@@ -264,8 +264,8 @@
   }
 
   function applyScopeFallback(cn, reason = '') {
-    if (!scopeFallback || normalizeCadNumber(scopeFallback.cn) !== cn) return false;
-    const h = scopeFallback.hint; if (!h || !Number.isFinite(Number(h.lat)) || !Number.isFinite(Number(h.lon))) return false;
+    const h = scopeHints.get(normalizeCadNumber(cn));
+    if (!h || !Number.isFinite(Number(h.lat)) || !Number.isFinite(Number(h.lon))) return false;
     const lat = Number(h.lat), lon = Number(h.lon), zoom = Number(h.zoom) || 12;
     clearSelectedGeometry(); clearPointAssociation(); ensureParcelsLayer(); map.setView([lat, lon], zoom, { animate: true });
     $('infoTitle').textContent = `Район участка ${cn}`;
@@ -277,26 +277,38 @@
   }
 
   async function searchCadNumber(rawCn, forceLive = false) {
-    const cn = normalizeCadNumber(rawCn); lastCadNumber = cn; activeSearchCn = cn; scopeFallback = null;
+    const cn = normalizeCadNumber(rawCn);
+    const searchId = ++searchSequence;
+    lastCadNumber = cn; activeSearchCn = cn;
     clearSelectedGeometry(); clearPointAssociation();
     const cached = !forceLive ? cacheGet(cn) : null;
-    if (cached) { showParcel(cached, true); setStatus('Найдено из локального кэша.', 'ok'); return; }
+    if (cached) {
+      if (searchId !== searchSequence) return;
+      showParcel(cached, true); setStatus('Найдено из локального кэша.', 'ok'); return;
+    }
 
-    if (currentController) currentController.abort(); currentController = new AbortController();
-    const outerTimer = setTimeout(() => currentController?.abort(), 7600);
+    if (currentController) currentController.abort();
+    const controller = new AbortController(); currentController = controller;
+    const outerTimer = setTimeout(() => controller.abort(), 7600);
     const started = Date.now(), btn = $('searchBtn'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Ищу';
-    const timer = setInterval(() => { const sec = Math.max(1, Math.round((Date.now() - started) / 1000)); setStatus(`Ищу точный контур двумя сетевыми путями… ${sec} сек.`); }, 900);
+    const timer = setInterval(() => {
+      if (searchId !== searchSequence) return;
+      const sec = Math.max(1, Math.round((Date.now() - started) / 1000));
+      setStatus(`Ищу точный контур двумя сетевыми путями… ${sec} сек.`);
+    }, 900);
     setStatus('Ищу точный контур двумя сетевыми путями…');
 
     try {
       const data = await firstSuccessful([
         directNspdSearch(cn, 3200),
-        proxySearch(cn, forceLive, currentController.signal)
+        proxySearch(cn, forceLive, controller.signal)
       ]);
+      if (searchId !== searchSequence) return;
       cacheSet(cn, data); showParcel(data, false);
       setStatus(`Точный контур найден за ${((Date.now() - started) / 1000).toFixed(1)} сек.`, data.stale || data.approximate ? 'warn' : 'ok');
       if (window.innerWidth <= 760) $('sidebar').classList.remove('open');
     } catch (errors) {
+      if (searchId !== searchSequence) return;
       const list = Array.isArray(errors) ? errors : [errors];
       const details = list.map(e => e?.details).find(Boolean);
       const reason = details?.error === 'upstream_blocked' ? 'Серверный путь к НСПД сейчас блокируется источником.' : 'Онлайн-поиск точной геометрии временно недоступен.';
@@ -304,11 +316,17 @@
         $('infoTitle').textContent = `Участок ${cn}`;
         $('infoPill').textContent = 'точный контур не получен'; $('infoPill').className = 'pill future';
         $('hint').textContent = `${reason} Это не означает отсутствие участка. Реестр ПЗЗ/генплана и проектные документы продолжают обрабатываться независимо.`;
+        renderProperties({ cadastral_number: cn, properties: {} });
       }
       setStatus('Точный контур пока не получен. Работа по территории продолжается — это не блокирующая ошибка.', 'warn');
       $('copyLink').disabled = false;
     } finally {
-      clearTimeout(outerTimer); clearInterval(timer); btn.disabled = false; btn.textContent = 'Найти'; currentController = null; activeSearchCn = null;
+      clearTimeout(outerTimer); clearInterval(timer);
+      if (searchId === searchSequence) {
+        btn.disabled = false; btn.textContent = 'Найти';
+        if (currentController === controller) currentController = null;
+        activeSearchCn = null;
+      }
     }
   }
 
@@ -316,7 +334,9 @@
     const q = $('query').value.trim(); if (!q) return setStatus('Введите кадастровый номер или координаты.', 'warn');
     const coords = parseCoords(q);
     if (coords) {
-      clearSelectedGeometry(); lastCadNumber = null; activeSearchCn = null; scopeFallback = null;
+      ++searchSequence;
+      if (currentController) currentController.abort(); currentController = null;
+      clearSelectedGeometry(); lastCadNumber = null; activeSearchCn = null;
       map.setView(coords, 17); setPoint(coords[0], coords[1]); renderProperties({}); $('copyLink').disabled = true; setStatus('Переход по координатам выполнен.', 'ok'); return;
     }
     if (!isCadNumber(q)) return setStatus('Не распознал формат. Пример: 25:36:050101:2652', 'warn');
@@ -328,7 +348,7 @@
   window.addEventListener('landhorizon:scope', e => {
     const d = e.detail || {}, cn = normalizeCadNumber(d.cn);
     if (!cn || !d.scope_hint) return;
-    scopeFallback = { cn, hint: d.scope_hint };
+    scopeHints.set(cn, d.scope_hint);
     if (lastCadNumber === cn && !selectedGeo && !coordsCadNumber && !activeSearchCn) applyScopeFallback(cn);
   });
 
