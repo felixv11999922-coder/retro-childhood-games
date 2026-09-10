@@ -1,0 +1,63 @@
+name: Land map CI
+
+on:
+  push:
+    paths:
+      - 'land-map/**'
+      - '.github/workflows/land-map-ci.yml'
+  pull_request:
+    paths:
+      - 'land-map/**'
+      - '.github/workflows/land-map-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check browser JavaScript syntax
+        run: |
+          node --check land-map/app.js
+          node --check land-map/planning.js
+
+      - name: Run planning-classifier regression tests
+        run: python land-map/collector/official_scan.py --self-test
+
+      - name: Validate generated candidate data
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('land-map/data/project-candidates.json')
+          data = json.loads(p.read_text('utf-8'))
+          assert isinstance(data.get('candidates'), list), 'candidates must be a list'
+          assert data.get('schema_version') == 2, 'unexpected candidate schema version'
+          allowed = {'PZZ', 'GENPLAN', 'PPT', 'PMT', 'KRT'}
+          for item in data['candidates']:
+              assert item.get('doc_type') in allowed, f"unexpected doc_type: {item.get('doc_type')}"
+              assert item.get('document_url'), 'candidate without document_url'
+              assert item.get('relevance_score', 0) >= 7, 'weak candidate leaked into published data'
+          print(f"candidate data OK: {len(data['candidates'])} rows")
+          PY
+
+      - name: Validate entrypoint references
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html = Path('land-map/index.html').read_text('utf-8')
+          for required in ('app.js?v=0.6.1', 'planning.js?v=0.6.1', 'id="map"', 'id="planningSources"'):
+              assert required in html, f'missing entrypoint/reference: {required}'
+          print('entrypoint references OK')
+          PY
