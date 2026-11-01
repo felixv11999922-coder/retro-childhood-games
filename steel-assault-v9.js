@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.5.0';
+  const BUILD = '9.6.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -396,8 +396,8 @@
       hitbox: [5, 7, 38, 86],
       sprite: [-22, -45, 92, 141],
       hp: 2,
-      speed: 48,
-      range: 130,
+      speed: 82,
+      range: 235,
       score: 120
     },
     runner: {
@@ -405,8 +405,8 @@
       hitbox: [5, 8, 36, 83],
       sprite: [-21, -43, 88, 137],
       hp: 1,
-      speed: 104,
-      range: 155,
+      speed: 138,
+      range: 200,
       score: 130
     },
     heavy: {
@@ -414,8 +414,8 @@
       hitbox: [8, 8, 52, 108],
       sprite: [-31, -62, 130, 182],
       hp: 6,
-      speed: 31,
-      range: 96,
+      speed: 46,
+      range: 160,
       score: 280
     },
     drone: {
@@ -441,8 +441,8 @@
       hitbox: [12, 10, 100, 142],
       sprite: [-45, -88, 214, 246],
       hp: 18,
-      speed: 45,
-      range: 180,
+      speed: 58,
+      range: 200,
       score: 1800
     }
   };
@@ -508,7 +508,8 @@
       vy: 0,
       onGround: true,
       patrolDirection: index % 2 ? -1 : 1,
-      thinkTimer: random(0.55, 1.35),
+      patrolTarget: null,
+      thinkTimer: random(1.1, 2.0),
       recoil: 0,
       muzzleFlash: 0,
       lastShotAngle: Math.PI,
@@ -1260,30 +1261,42 @@
       enemy.vx = damp(enemy.vx || 0, desiredSpeed, 7.5, dt);
       enemy.x += enemy.vx * dt;
     } else if (enemy.type === 'rifle' || enemy.type === 'heavy') {
-      const minX = enemy.homeX - enemy.moveRange;
-      const maxX = enemy.homeX + enemy.moveRange;
+      const encounter = state.encounters.find((item) => item.id === enemy.encounterId);
+      // Patrol endpoints are inside the current encounter. The objective is to
+      // RUN BETWEEN endpoints, not try to walk beyond a clamped world position.
+      const minX = Math.max(34, enemy.homeX - enemy.moveRange,
+        encounter ? encounter.trigger + 70 : 34);
+      const maxBound = Math.min(currentLevel().length - enemy.w - 35,
+        enemy.homeX + enemy.moveRange,
+        encounter ? encounter.lockX - enemy.w - 32 : currentLevel().length);
+      const maxX = Math.max(minX + 20, maxBound);
+      const midpoint = (minX + maxX) * 0.5;
+      if (!Number.isFinite(enemy.patrolTarget)) {
+        enemy.patrolTarget = enemy.patrolDirection > 0 ? maxX - 8 : minX + 8;
+      }
       if (enemy.thinkTimer <= 0) {
-        if (random(0, 1) < 0.32) enemy.patrolDirection *= -1;
-        enemy.observeTimer = random(0.16, 0.36);
-        enemy.thinkTimer = random(0.8, 1.65);
+        enemy.thinkTimer = random(1.4, 2.5);
+        // Briefly aim, without stopping combat movement for a full second.
+        enemy.observeTimer = random(0.05, 0.12);
       }
-      let desiredSpeed = enemy.patrolDirection * enemy.speed * 0.52;
-      enemy.aiState = 'patrol';
-      if (distance < 190) {
-        desiredSpeed = -Math.sign(dx) * enemy.speed * 0.72;
-        enemy.aiState = 'retreat';
-      } else if (distance > 270 && distance < 520) {
-        desiredSpeed = Math.sign(dx) * enemy.speed * 0.62;
-        enemy.aiState = 'advance';
+      if (Math.abs(enemy.x - enemy.patrolTarget) < 22) {
+        enemy.patrolTarget = enemy.patrolTarget >= midpoint ? minX + 8 : maxX - 8;
       }
-      if (enemy.observeTimer > 0) {
-        desiredSpeed = 0;
-        enemy.aiState = 'observe';
+      // Retreat from close range only while there is actually space to retreat.
+      // Otherwise traverse the other side instead of endlessly pushing a wall.
+      if (distance < 150) {
+        const escape = dx < 0 ? maxX - 8 : minX + 8;
+        if (Math.abs(escape - enemy.x) > 65) enemy.patrolTarget = escape;
       }
-      if (enemy.x <= minX + 3) enemy.patrolDirection = 1;
-      if (enemy.x >= maxX - 3) enemy.patrolDirection = -1;
-      enemy.vx = damp(enemy.vx || 0, desiredSpeed, 5.8, dt);
+      const toTarget = enemy.patrolTarget - enemy.x;
+      const moveDirection = Math.sign(toTarget) || enemy.patrolDirection;
+      enemy.patrolDirection = moveDirection;
+      const pace = enemy.crouching ? 0.27 : enemy.type === 'heavy' ? 0.88 : 1;
+      const desiredSpeed = moveDirection * enemy.speed * pace *
+        (enemy.observeTimer > 0 ? 0.58 : 1);
+      enemy.vx = damp(enemy.vx || 0, desiredSpeed, 7.8, dt);
       enemy.x = clamp(enemy.x + enemy.vx * dt, minX, maxX);
+      enemy.aiState = enemy.crouching ? 'crouch' : enemy.observeTimer > 0 ? 'aim' : 'run';
     } else if (enemy.type === 'boss') {
       enemy.aiState = 'advance';
       const encounter = state.encounters.find((item) => item.id === enemy.encounterId);
@@ -1331,10 +1344,10 @@
         enemy.y = groundAt(enemy.x) - enemy.h;
         enemy.vy = 0;
       }
-      if (enemy.onGround && enemy.crouchCooldown <= 0 && distance < 590 &&
+      if (enemy.onGround && enemy.crouchCooldown <= 0 && distance < 460 &&
           (enemy.type !== 'runner' || incoming) && enemy.jumpCooldown > 0.35) {
-        enemy.crouchTimer = random(enemy.type === 'heavy' ? 0.8 : 0.48, enemy.type === 'heavy' ? 1.3 : 0.95);
-        enemy.crouchCooldown = random(2.4, 4.5);
+        enemy.crouchTimer = random(enemy.type === 'heavy' ? 0.48 : 0.28, enemy.type === 'heavy' ? 0.8 : 0.52);
+        enemy.crouchCooldown = random(3.1, 5.4);
       }
       enemy.crouching = enemy.onGround && enemy.crouchTimer > 0;
       enemy.crouchBlend = damp(enemy.crouchBlend, enemy.crouching ? 1 : 0, 14, dt);
@@ -1343,9 +1356,10 @@
     }
     enemy.vx = (enemy.x - previousX) / Math.max(dt, 0.001);
     if (Math.abs(enemy.vx) > 2 && enemy.onGround && !enemy.crouching && enemy.type !== 'drone' && enemy.type !== 'turret') {
-      enemy.walkPhase += Math.abs(enemy.vx) * dt * (enemy.type === 'runner' ? 0.09 : enemy.type === 'heavy' || enemy.type === 'boss' ? 0.14 : 0.13);
+      enemy.walkPhase += Math.abs(enemy.vx) * dt * (enemy.type === 'runner' ? 0.15 : enemy.type === 'heavy' ? 0.11 : enemy.type === 'boss' ? 0.12 : 0.15);
     }
-    enemy.walkBlend = damp(enemy.walkBlend, groundedFighter && enemy.onGround && !enemy.crouching ? clamp((Math.abs(enemy.vx) - 3) / Math.max(10, enemy.speed * 0.45), 0, 1) : 0, 8.5, dt);
+    enemy.walkBlend = damp(enemy.walkBlend, groundedFighter && enemy.onGround && !enemy.crouching
+      ? clamp((Math.abs(enemy.vx) - 2) / Math.max(8, enemy.speed * 0.25), 0, 1) : 0, 12, dt);
     if (enemy.hitFlash > 0) enemy.aiState = 'hit';
     const fireRange = enemy.type === 'boss' ? 820 : enemy.type === 'drone' ? 720 : 670;
     const facingDx = player.x + player.w * 0.5 - (enemy.x + enemy.w * 0.5);
@@ -2460,27 +2474,43 @@
     ctx.fill();
   }
 
-  // Existing WebP is split at render time. Legs swing independently;
-  // the collision body and source files do not change.
+  // Existing image assets are reused. For moving enemies the original full
+  // sprite fades rapidly and the two lower-body slices swing independently.
+  // The hero keeps its already approved run cycle.
   function drawSegmentedActor(image, entity, sprite, walkMix) {
     const width = image.naturalWidth, height = image.naturalHeight;
-    const w = sprite.w, h = sprite.h, cut = 0.60, torso = 0.73;
-    const stride = Math.sin(entity.walkPhase || 0);
-    const swing = (entity.type === 'heavy' || entity.type === 'boss' ? 0.30 : 0.42) * stride;
+    const w = sprite.w, h = sprite.h;
+    const enemy = entity.kind === 'enemy';
+    const cut = enemy ? 0.58 : 0.60;
+    const torso = enemy ? 0.70 : 0.73;
+    const phase = entity.walkPhase || 0;
+    const stride = Math.sin(phase);
+    const swingSize = !enemy ? 0.42 :
+      entity.type === 'runner' ? 0.63 :
+      entity.type === 'rifle' ? 0.53 :
+      entity.type === 'heavy' ? 0.35 : 0.41;
+    const swing = swingSize * stride;
+    const blend = enemy ? clamp(walkMix * 1.65, 0, 1) : walkMix;
     const alpha = ctx.globalAlpha;
-    ctx.globalAlpha = alpha * (1 - walkMix);
-    if (walkMix < 0.995) ctx.drawImage(image, -w * 0.5, -h, w, h);
-    ctx.globalAlpha = alpha * walkMix;
+    ctx.globalAlpha = alpha * (1 - blend);
+    if (blend < 0.998) ctx.drawImage(image, -w * 0.5, -h, w, h);
+    ctx.globalAlpha = alpha * blend;
     for (let leg = 0; leg < 2; leg += 1) {
-      const lift = Math.max(0, Math.sin((entity.walkPhase || 0) + leg * Math.PI)) * h * 0.027;
+      const lift = Math.max(0, Math.sin(phase + leg * Math.PI)) * h * (enemy ? 0.042 : 0.027);
       ctx.save();
       ctx.translate((leg === 0 ? -0.25 : 0.25) * w, -h * (1 - cut) - lift);
       ctx.rotate(leg === 0 ? swing : -swing);
-      ctx.drawImage(image, leg * width * 0.5, height * cut, width * 0.5, height * (1 - cut), -w * 0.25, 0, w * 0.5, h * (1 - cut));
+      ctx.drawImage(image, leg * width * 0.5, height * cut,
+        width * 0.5, height * (1 - cut), -w * 0.25, 0, w * 0.5, h * (1 - cut));
       ctx.restore();
     }
-    // Torso overlaps hip cut to cover seams.
+    ctx.save();
+    if (enemy) {
+      ctx.translate(0, Math.abs(stride) * 1.7);
+      ctx.rotate(-swing * 0.12);
+    }
     ctx.drawImage(image, 0, 0, width, height * torso, -w * 0.5, -h, w, h * torso);
+    ctx.restore();
     ctx.globalAlpha = alpha;
   }
 
