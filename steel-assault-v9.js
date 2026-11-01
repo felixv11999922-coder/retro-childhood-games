@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.6.0';
+  const BUILD = '9.7.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -136,23 +136,37 @@
     { type: 'growth', x: 5290, scale: 1.18 }
   ];
 
+  // The old enemy WebP is a collage of TWO soldiers and a red crate.
+  // Render a single isolated fighter silhouette instead, not the whole collage.
+  const CLEAN_FIGHTER = window.SteelAssaultHeroV6 || window.SteelAssaultPhotoActors?.hero;
+  const HUMANOID_ENEMIES = new Set(['rifle', 'runner', 'heavy', 'boss']);
+  const ENEMY_GRADES = {
+    rifle: 'grayscale(.52) sepia(.18) saturate(.78) brightness(.78)',
+    runner: 'grayscale(.42) sepia(.25) hue-rotate(130deg) saturate(.82) brightness(.84)',
+    heavy: 'grayscale(.78) sepia(.28) brightness(.65) contrast(1.1)',
+    boss: 'grayscale(.3) sepia(.58) hue-rotate(325deg) saturate(1.2) brightness(.7)'
+  };
   const ASSET_SOURCES = {
-    hero: window.SteelAssaultHeroV6 || window.SteelAssaultPhotoActors?.hero,
-    rifle: window.SteelAssaultPhotoActors?.enemy,
-    runner: window.SteelAssaultPhotoActors?.enemy,
-    heavy: window.SteelAssaultPhotoActors?.heavy || window.SteelAssaultPhotoActors?.enemy,
+    hero: CLEAN_FIGHTER,
+    rifle: CLEAN_FIGHTER,
+    runner: CLEAN_FIGHTER,
+    heavy: CLEAN_FIGHTER,
     drone: window.SteelAssaultPhotoActors?.drone,
     turret: window.SteelAssaultPhotoActors?.turret,
-    boss: window.SteelAssaultPhotoActors?.heavy || window.SteelAssaultPhotoActors?.enemy
+    boss: CLEAN_FIGHTER
   };
 
   const IMAGES = {};
+  const sharedImages = new Map();
   Object.entries(ASSET_SOURCES).forEach(([key, source]) => {
     if (!source) return;
-    const image = new Image();
-    image.decoding = 'async';
-    image.src = source;
-    IMAGES[key] = image;
+    if (!sharedImages.has(source)) {
+      const image = new Image();
+      image.decoding = 'async';
+      image.src = source;
+      sharedImages.set(source, image);
+    }
+    IMAGES[key] = sharedImages.get(source);
   });
 
   const view = {
@@ -777,9 +791,10 @@
     const direction = entity.direction || 1;
     const profile = MUZZLE_PROFILES[entity.type] || MUZZLE_PROFILES.rifle;
     const pose = actorPose(entity);
-    const mirrored = entity.kind === 'player' ? direction < 0 : direction > 0;
-    // Hero source artwork faces right; enemy source artwork faces left.
-    const sourceX = sprite.w * (entity.kind === 'player' ? profile.edge - 0.5 : 0.5 - profile.edge);
+    // Humanoid enemies now use the right-facing source silhouette.
+    const rightFacingSource = entity.kind === 'player' || HUMANOID_ENEMIES.has(entity.type);
+    const mirrored = rightFacingSource ? direction < 0 : direction > 0;
+    const sourceX = sprite.w * (rightFacingSource ? profile.edge - 0.5 : 0.5 - profile.edge);
     const sourceY = -sprite.h * (1 - profile.y);
     // Same matrix as drawActorImage: rotate, then scale/shear, then translate.
     const tx = (mirrored ? -pose.scaleX : pose.scaleX) * sourceX + pose.shear * (mirrored ? -1 : 1) * sourceY;
@@ -1320,12 +1335,14 @@
         Math.abs(bullet.y - (enemy.y + enemy.h * 0.53)) < enemy.h * 0.8
       );
       if (enemy.onGround && enemy.jumpCooldown <= 0 && closeFight && !enemy.crouching &&
-          (enemy.type === 'runner' || enemy.type === 'boss' || incoming || random(0, 1) < 0.5)) {
+          (enemy.type === 'runner' ? random(0, 1) < 0.68 :
+            enemy.type === 'boss' ? random(0, 1) < 0.4 :
+            incoming && random(0, 1) < 0.18)) {
         enemy.vy = enemy.type === 'runner' ? -615 : enemy.type === 'heavy' ? -410 : enemy.type === 'boss' ? -555 : -505;
         enemy.onGround = false;
         enemy.crouching = false;
         enemy.crouchTimer = 0;
-        enemy.jumpCooldown = random(enemy.type === 'runner' ? 2 : 3.2, enemy.type === 'runner' ? 3.2 : 5.6);
+        enemy.jumpCooldown = random(enemy.type === 'runner' ? 2.6 : 4.8, enemy.type === 'runner' ? 4.2 : 7.5);
         enemy.aiState = 'jump';
         makeParticles(enemy.x + enemy.w * 0.5, enemy.y + enemy.h, '#c2a17b', 3, -Math.PI / 2, 65);
       }
@@ -2474,44 +2491,64 @@
     ctx.fill();
   }
 
-  // Existing image assets are reused. For moving enemies the original full
-  // sprite fades rapidly and the two lower-body slices swing independently.
-  // The hero keeps its already approved run cycle.
-  function drawSegmentedActor(image, entity, sprite, walkMix) {
+  // Each human enemy is drawn from ONE fighter, with separate moving legs.
+  // Airborne foes tuck the legs instead of floating as a rigid photograph.
+  function drawSegmentedActor(image, entity, sprite, walkMix, airborne = false) {
     const width = image.naturalWidth, height = image.naturalHeight;
     const w = sprite.w, h = sprite.h;
     const enemy = entity.kind === 'enemy';
-    const cut = enemy ? 0.58 : 0.60;
-    const torso = enemy ? 0.70 : 0.73;
-    const phase = entity.walkPhase || 0;
-    const stride = Math.sin(phase);
+    const cut = 0.60, torso = 0.73;
+    const phase = entity.walkPhase || 0, stride = Math.sin(phase);
     const swingSize = !enemy ? 0.42 :
-      entity.type === 'runner' ? 0.63 :
-      entity.type === 'rifle' ? 0.53 :
-      entity.type === 'heavy' ? 0.35 : 0.41;
+      entity.type === 'runner' ? 0.55 : entity.type === 'rifle' ? 0.45 :
+      entity.type === 'heavy' ? 0.30 : 0.35;
     const swing = swingSize * stride;
-    const blend = enemy ? clamp(walkMix * 1.65, 0, 1) : walkMix;
+    const blend = airborne ? 1 : enemy ? clamp(walkMix * 1.3, 0, 1) : walkMix;
     const alpha = ctx.globalAlpha;
     ctx.globalAlpha = alpha * (1 - blend);
     if (blend < 0.998) ctx.drawImage(image, -w * 0.5, -h, w, h);
     ctx.globalAlpha = alpha * blend;
     for (let leg = 0; leg < 2; leg += 1) {
-      const lift = Math.max(0, Math.sin(phase + leg * Math.PI)) * h * (enemy ? 0.042 : 0.027);
+      const lift = airborne ? h * (leg === 0 ? 0.065 : 0.035) :
+        Math.max(0, Math.sin(phase + leg * Math.PI)) * h * (enemy ? 0.033 : 0.027);
       ctx.save();
       ctx.translate((leg === 0 ? -0.25 : 0.25) * w, -h * (1 - cut) - lift);
-      ctx.rotate(leg === 0 ? swing : -swing);
+      ctx.rotate(airborne ? (leg === 0 ? -0.52 : 0.58) : (leg === 0 ? swing : -swing));
       ctx.drawImage(image, leg * width * 0.5, height * cut,
-        width * 0.5, height * (1 - cut), -w * 0.25, 0, w * 0.5, h * (1 - cut));
+        width * 0.5, height * (1 - cut), -w * 0.25, 0,
+        w * 0.5, h * (1 - cut) * (airborne ? 0.86 : 1));
       ctx.restore();
     }
     ctx.save();
-    if (enemy) {
-      ctx.translate(0, Math.abs(stride) * 1.7);
-      ctx.rotate(-swing * 0.12);
+    if (enemy && !airborne) {
+      ctx.translate(0, Math.abs(stride) * 1.3);
+      ctx.rotate(-swing * 0.11);
     }
     ctx.drawImage(image, 0, 0, width, height * torso, -w * 0.5, -h, w, h * torso);
     ctx.restore();
     ctx.globalAlpha = alpha;
+  }
+
+  // Helmet plus a narrow red identification stripe distinguishes hostile
+  // soldiers from the player, without introducing baked-in backgrounds.
+  function drawEnemyHelmet(entity, sprite) {
+    if (!HUMANOID_ENEMIES.has(entity.type) || entity.dead) return;
+    const w = sprite.w, h = sprite.h;
+    ctx.save();
+    ctx.filter = 'none';
+    const helmetColor = entity.type === 'boss' ? '#813735' :
+      entity.type === 'heavy' ? '#474b43' :
+      entity.type === 'runner' ? '#4b6460' : '#64644e';
+    ctx.fillStyle = helmetColor;
+    ctx.beginPath();
+    ctx.ellipse(-w * 0.04, -h * 0.91, w * 0.165, h * 0.07, -0.08, Math.PI, Math.PI * 2);
+    ctx.lineTo(w * 0.13, -h * 0.875);
+    ctx.lineTo(-w * 0.21, -h * 0.875);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#d15d4c';
+    ctx.fillRect(-w * 0.18, -h * 0.891, w * 0.25, Math.max(1.6, h * 0.011));
+    ctx.restore();
   }
 
   function drawActorImage(image, entity, flip = false) {
@@ -2526,15 +2563,21 @@
     ctx.rotate(pose.rotation);
     ctx.transform(flip ? -pose.scaleX : pose.scaleX, 0, pose.shear * (flip ? -1 : 1), pose.scaleY, 0, 0);
     if (entity.hitFlash > 0) ctx.filter = 'brightness(2.15) saturate(.35) sepia(.45)';
+    else if (entity.kind === 'enemy' && HUMANOID_ENEMIES.has(entity.type))
+      ctx.filter = ENEMY_GRADES[entity.type];
 
     if (!image?.complete || !image.naturalWidth) {
       ctx.fillStyle = entity.kind === 'player' ? '#e47a4d' : entity.type === 'drone' ? '#4b97a5' : '#b55b48';
       ctx.fillRect(-sprite.w * 0.5, -sprite.h, sprite.w, sprite.h);
+    } else if (entity.kind === 'enemy' && HUMANOID_ENEMIES.has(entity.type) && entity.onGround === false) {
+      drawSegmentedActor(image, entity, sprite, 1, true);
     } else if (pose.walkMix > 0.04 && ['hero', 'rifle', 'runner', 'heavy', 'boss'].includes(entity.type)) {
       drawSegmentedActor(image, entity, sprite, pose.walkMix);
     } else {
       ctx.drawImage(image, -sprite.w * 0.5, -sprite.h, sprite.w, sprite.h);
     }
+    if (entity.kind === 'enemy' && image?.complete && image.naturalWidth)
+      drawEnemyHelmet(entity, sprite);
     ctx.restore();
   }
 
@@ -2573,7 +2616,8 @@
       }
 
       if (!enemy.dead && enemy.type !== 'drone') drawShadow(enemy, enemy.type === 'boss' ? 0.42 : 0.29);
-      drawActorImage(IMAGES[enemy.type] || IMAGES.rifle, enemy, enemy.direction > 0);
+      drawActorImage(IMAGES[enemy.type] || IMAGES.rifle, enemy,
+        HUMANOID_ENEMIES.has(enemy.type) ? enemy.direction < 0 : enemy.direction > 0);
       if (!enemy.dead) drawMuzzleFlash(enemy);
 
       if (enemy.type === 'boss' && IMAGES.turret?.complete) {
