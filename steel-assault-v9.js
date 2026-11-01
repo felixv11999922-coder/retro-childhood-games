@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.8.0';
+  const BUILD = '9.9.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -190,7 +190,7 @@
     paused: false,
     missionIndex: 0,
     score: 0,
-    lives: 4,
+    lives: 7,
     time: 0,
     player: null,
     camera: { x: 0, anchor: 0.42 },
@@ -462,25 +462,48 @@
     }
   };
 
+  // Accessible tutorial, smooth 12-level difficulty progression.
+  function missionBalance(level = state.missionIndex) {
+    const tier = clamp(level, 0, 11);
+    return {
+      lives: tier === 0 ? 7 : tier < 4 ? 6 : tier < 8 ? 5 : 4,
+      invulnerability: Math.max(1.85, 3.25 - tier * 0.12),
+      projectileSpeed: 190 + tier * 19,
+      maxHostileProjectiles: Math.min(8, 2 + Math.floor((tier + 1) / 2)),
+      aimSpread: Math.max(0.025, 0.19 - tier * 0.015),
+      fireScale: Math.max(0.82, 1 - tier * 0.017)
+    };
+  }
+
   function enemyDifficulty(type) {
     const mission = state.missionIndex;
-    const learningMission = mission === 0;
-    const hpBonus = Math.floor(mission / 4);
-    const cooldownScale = Math.max(0.62, 1 - mission * 0.032);
-    const base = {
-      rifle: learningMission ? 2.65 : 2.15,
+    const balance = missionBalance(mission);
+    const cooldown = {
+      rifle: mission === 0 ? 5.2 : 3.3,
       runner: 99,
-      heavy: learningMission ? 2.45 : 1.85,
-      drone: learningMission ? 2.75 : 1.95,
-      turret: learningMission ? 2.55 : 1.7,
-      boss: learningMission ? 1.55 : 1.15
+      heavy: mission === 0 ? 5.5 : 3.1,
+      drone: mission === 0 ? 5.8 : 3.4,
+      turret: mission === 0 ? 5.6 : 3.1,
+      boss: mission === 0 ? 3.9 : 2.6
     }[type];
     return {
-      hpBonus,
-      cooldown: base * cooldownScale,
-      projectileSpeed: learningMission ? 270 : 300 + mission * 8,
-      maxHostileProjectiles: 4 + Math.floor(mission * 0.75)
+      cooldown: cooldown * balance.fireScale,
+      projectileSpeed: balance.projectileSpeed,
+      maxHostileProjectiles: balance.maxHostileProjectiles,
+      aimSpread: balance.aimSpread
     };
+  }
+
+  function enemyHealth(type, level = state.missionIndex) {
+    const tier = clamp(level, 0, 11);
+    return {
+      rifle: 1 + Math.floor((tier + 1) / 4),
+      runner: 1 + Math.floor(tier / 5),
+      heavy: 3 + Math.floor((tier + 1) / 3),
+      drone: 2 + Math.floor((tier + 1) / 4),
+      turret: 2 + Math.floor((tier + 1) / 3),
+      boss: 8 + tier * 3
+    }[type];
   }
 
   function makeEnemy(descriptor, encounterId, index) {
@@ -490,7 +513,7 @@
     const [w, h] = archetype.body;
     const x = descriptor.x;
     const isFlying = type === 'drone';
-    const baseHp = type === 'boss' ? archetype.hp + state.missionIndex * 3 : archetype.hp + difficulty.hpBonus;
+    const baseHp = enemyHealth(type);
     return {
       kind: 'enemy',
       type,
@@ -545,10 +568,7 @@
         trigger: 620,
         preview: 800,
         lockX: 1280,
-        spawns: [
-          { type: 'rifle', x: 940 },
-          { type: 'rifle', x: 1110 }
-        ]
+        spawns: [{ type: 'rifle', x: 980 }]
       },
       {
         id: 'm1-yard',
@@ -557,9 +577,8 @@
         preview: 1590,
         lockX: 2020,
         spawns: [
-          { type: 'rifle', x: 1600 },
-          { type: 'runner', x: 1780 },
-          { type: 'rifle', x: 1910 }
+          { type: 'rifle', x: 1610 },
+          { type: 'runner', x: 1840 }
         ]
       },
       {
@@ -569,9 +588,8 @@
         preview: 2360,
         lockX: 2760,
         spawns: [
-          { type: 'rifle', x: 2350 },
-          { type: 'turret', x: 2530 },
-          { type: 'drone', x: 2640, y: 325 }
+          { type: 'turret', x: 2500 },
+          { type: 'drone', x: 2600, y: 325 }
         ]
       },
       {
@@ -582,8 +600,7 @@
         lockX: 3520,
         spawns: [
           { type: 'rifle', x: 3100 },
-          { type: 'heavy', x: 3290 },
-          { type: 'turret', x: 3430 }
+          { type: 'heavy', x: 3290 }
         ]
       },
       {
@@ -593,9 +610,8 @@
         preview: 3850,
         lockX: 4310,
         spawns: [
-          { type: 'rifle', x: 3860 },
-          { type: 'heavy', x: 4050 },
-          { type: 'drone', x: 4190, y: 305 }
+          { type: 'heavy', x: 3950 },
+          { type: 'drone', x: 4140, y: 305 }
         ]
       },
       {
@@ -787,6 +803,19 @@
     boss: { edge: 0.94, y: 0.43, reach: 11 }
   };
 
+  function turretAimAngle(entity) {
+    const direction = entity.direction > 0 ? 1 : -1;
+    const baseline = direction > 0 ? 0 : Math.PI;
+    if (!state.player) return baseline;
+    const sprite = entitySpriteRect(entity);
+    const target = entityHitbox(state.player);
+    const dx = target.x + target.w * 0.5 - (sprite.x + sprite.w * 0.5);
+    const dy = target.y + target.h * 0.42 - (sprite.y + sprite.h * 0.45);
+    const targetAngle = Math.atan2(dy, dx);
+    const relative = Math.atan2(Math.sin(targetAngle - baseline), Math.cos(targetAngle - baseline));
+    return baseline + clamp(relative, -0.56, 0.56);
+  }
+
   function actorMuzzle(entity, shotAngle = null) {
     const sprite = entitySpriteRect(entity);
     // Mechanical guns and visual barrels share these exact world coordinates.
@@ -795,12 +824,17 @@
       const angle = Number.isFinite(shotAngle) ? shotAngle :
         (entity.direction > 0 ? 0 : Math.PI);
       const direction = entity.direction > 0 ? 1 : -1;
-      const bodyY = entity.type === 'drone' ? 0.50 : 0.45;
-      const muzzleY = entity.type === 'drone' ? 0.54 : 0.43;
-      const xReach = entity.type === 'drone' ? 0.47 : 0.48;
+      if (entity.type === 'turret') {
+        const targetAngle = turretAimAngle(entity);
+        return {
+          x: sprite.x + sprite.w * 0.5 + Math.cos(targetAngle) * sprite.w * 0.48,
+          y: sprite.y + sprite.h * 0.45 + Math.sin(targetAngle) * sprite.w * 0.48,
+          angle: targetAngle
+        };
+      }
       return {
-        x: sprite.x + sprite.w * (0.5 + direction * xReach),
-        y: sprite.y + sprite.h * muzzleY,
+        x: sprite.x + sprite.w * (0.5 + direction * 0.47 * 0.86),
+        y: sprite.y + sprite.h * (0.5 + 0.04 * 0.86),
         angle
       };
     }
@@ -897,7 +931,7 @@
     state.mode = 'play';
     state.paused = false;
     state.score = canRestore ? Number(storedRun.score) || 0 : 0;
-    state.lives = 4;
+    state.lives = missionBalance().lives;
     state.time = 0;
     state.player = makePlayer(startX);
     state.camera.x = clamp(startX - view.width * 0.38, 0, Math.max(0, level.length - view.width));
@@ -927,7 +961,7 @@
     requestAnimationFrame(resizeCanvas);
 
     if (canRestore) showToast('ПРОГРЕСС ВОССТАНОВЛЕН · продолжай штурм', 1800);
-    else showToast(level.id === 1 ? 'ДВИГАЙСЯ ВПРАВО · первый сектор безопасен' : level.objective, 1800);
+    else showToast(level.id === 1 ? 'ОБУЧЕНИЕ · 7 жизней, двигайся и стреляй' : level.objective, 1900);
 
     saveRun();
     track('game_start', { resumed: canRestore });
@@ -1056,10 +1090,10 @@
     const targetY = playerBox.y + playerBox.h * 0.42;
     const dx = targetX - roughMuzzle.x;
     const dy = targetY - roughMuzzle.y;
-    const length = Math.hypot(dx, dy) || 1;
     const speed = enemy.projectileSpeed;
-    const projectileCount = enemy.type === 'boss' && state.missionIndex > 2 ? 2 : 1;
-    const baseAngle = Math.atan2(dy, dx);
+    const projectileCount = enemy.type === 'boss' && state.missionIndex > 3 ? 2 : 1;
+    // Wide, dodgeable spread early on; progressively more accurate enemies.
+    const baseAngle = Math.atan2(dy, dx) + random(-difficulty.aimSpread, difficulty.aimSpread);
     enemy.recoil = 1;
     const muzzle = actorMuzzle(enemy, baseAngle);
     enemy.lastShotAngle = baseAngle;
@@ -1118,11 +1152,11 @@
     if (enemy.type === 'boss') track('boss_destroyed', { score: state.score });
   }
 
-  function damagePlayer() {
+  function damagePlayer(reason = 'hit') {
     const player = state.player;
     if (!player || player.invulnerable > 0 || state.mode !== 'play' || state.respawnTimer > 0) return;
     state.lives -= 1;
-    player.invulnerable = 1.8;
+    player.invulnerable = missionBalance().invulnerability;
     player.hitFlash = 0.16;
     player.recoil = 0.7;
     makeParticles(player.x + player.w * 0.5, player.y + player.h * 0.45, '#ff665c', 16, Math.PI, 280);
@@ -1134,12 +1168,14 @@
       progressStore.best = Math.max(progressStore.best, state.score);
       saveRun();
       track('defeat', { score: state.score });
-      setModal('Миссия провалена', 'Четыре жизни потеряны. Повтори атаку с последнего открытого сектора.', 'Переиграть', () => prepareMission(state.missionIndex, true));
+      setModal('Миссия провалена', 'Жизни закончились. Продолжи с последнего открытого сектора.', 'Переиграть', () => prepareMission(state.missionIndex, true));
       return;
     }
 
-    showToast(`ЖИЗНЬ ПОТЕРЯНА · ОСТАЛОСЬ ${state.lives}`, 1250);
-    state.respawnTimer = 0.38;
+    showToast(`ПОПАДАНИЕ · ОСТАЛОСЬ ЖИЗНЕЙ: ${state.lives}`, 1250);
+    // Enemy fire no longer teleports players backwards during the tutorial.
+    // A real fall still returns them to the latest checkpoint.
+    if (reason === 'fall') state.respawnTimer = 0.38;
   }
 
   function respawnPlayer() {
@@ -1152,7 +1188,7 @@
     player.onGround = true;
     player.crouching = false;
     player.crouchBlend = 0;
-    player.invulnerable = 1.8;
+    player.invulnerable = missionBalance().invulnerability;
     state.projectiles = state.projectiles.filter((projectile) => projectile.owner === 'player' || Math.abs(projectile.x - player.x) > view.width * 0.7);
     state.camera.x = clamp(player.x - view.width * 0.4, 0, Math.max(0, currentLevel().length - view.width));
   }
@@ -1239,7 +1275,7 @@
       player.stepDistance = 0;
     }
 
-    if (player.y > WORLD_HEIGHT + 160) damagePlayer();
+    if (player.y > WORLD_HEIGHT + 160) damagePlayer('fall');
     if (input.firing) firePlayerWeapon();
   }
 
@@ -1282,8 +1318,11 @@
 
     if (enemy.type === 'drone') {
       enemy.aiState = 'hover';
-      enemy.x = enemy.homeX + Math.sin(state.time * 0.72 + enemy.phase) * enemy.moveRange;
-      enemy.y = 315 + Math.sin(state.time * 1.55 + enemy.phase) * 56;
+      const patrolSpeed = 0.78 + state.missionIndex * 0.03;
+      const orbit = Math.sin(state.time * patrolSpeed + enemy.phase);
+      const approach = clamp((player.x - enemy.homeX) * 0.12, -24, 24);
+      enemy.x = enemy.homeX + orbit * enemy.moveRange * 0.82 + approach;
+      enemy.y = 320 + Math.sin(state.time * 1.7 + enemy.phase) * 42;
     } else if (enemy.type === 'runner') {
       let desiredSpeed = 0;
       enemy.aiState = distance < 88 ? 'retreat' : distance < 620 ? 'advance' : 'observe';
@@ -2612,6 +2651,7 @@
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(wobble);
+    ctx.scale(0.86, 0.86);
     if (entity.hitFlash > 0) ctx.filter = 'brightness(2.0)';
 
     // Two independent thrusters, illuminated below the hull.
@@ -2749,6 +2789,7 @@
     ctx.fillStyle = '#3a4750';
     ctx.fillRect(-w * 0.24, h * 0.14, w * 0.48, h * 0.26);
     ctx.save();
+    ctx.rotate(turretAimAngle(entity) - (direction > 0 ? 0 : Math.PI));
     ctx.translate(-direction * recoil * w * 0.015, 0);
     ctx.fillStyle = '#172029';
     ctx.fillRect(direction > 0 ? w * 0.02 : -w * 0.48, -h * 0.06, w * 0.46, h * 0.085);
