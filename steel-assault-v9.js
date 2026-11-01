@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.9.0';
+  const BUILD = '9.10.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -444,7 +444,7 @@
     },
     turret: {
       body: [76, 52],
-      hitbox: [7, 8, 62, 40],
+      hitbox: [7, -18, 62, 66],
       sprite: [-22, -22, 120, 74],
       hp: 4,
       speed: 0,
@@ -754,7 +754,7 @@
     const moving = !entity.dead && grounded && !turret && speed > (entity.kind === 'player' ? 18 : 4);
     const step = Math.sin(entity.walkPhase || 0);
     const idle = Math.sin(state.time * (entity.kind === 'player' ? 2.25 : 1.75) + (entity.phase || 0));
-    const crouchBlend = grounded ? clamp(entity.crouchBlend || 0, 0, 1) : 0;
+    const crouchBlend = grounded ? clamp(Math.max(entity.crouchBlend || 0, entity.crouching ? 0.88 : 0), 0, 1) : 0;
     const walkMix = moving && crouchBlend < 0.15 ? clamp(entity.walkBlend || 0, 0, 1) : 0;
     let bob = moving ? -Math.abs(step) * 2 * walkMix : idle * 0.7;
     let rotation = moving ? (entity.direction || 1) * 0.022 * walkMix : idle * 0.004;
@@ -856,6 +856,45 @@
       y: sprite.y + sprite.h + pose.bob + pose.recoilY + tx * sin + ty * cos + Math.sin(angle) * profile.reach,
       angle
     };
+  }
+
+  // Aim down with the stick while airborne or on platforms. On level
+  // ground DOWN remains crouch, with a forgiving firing line to low robots.
+  function playerShotAngle(player, verticalInput) {
+    const side = player.direction < 0 ? -1 : 1;
+    const facingAngle = angle => side > 0 ? angle : Math.PI - angle;
+    const down = clamp(verticalInput, 0, 1);
+    const up = clamp(-verticalInput, 0, 1);
+    if (up > 0.22 && !player.crouching)
+      return facingAngle(-lerp(0.20, 1.05, clamp((up - 0.22) / 0.78, 0, 1)));
+    if (down > 0.25 || player.crouching) {
+      const muzzle = actorMuzzle(player, side > 0 ? 0 : Math.PI);
+      let nearestAngle = null;
+      let bestScore = Infinity;
+      for (const enemy of state.enemies) {
+        if (enemy.dead || enemy.spawnTimer > 0) continue;
+        const hitbox = entityHitbox(enemy);
+        const ahead = (hitbox.x + hitbox.w * 0.5 - muzzle.x) * side;
+        if (ahead < 10 || ahead > 580) continue;
+        const margin = Math.min(8, hitbox.h * 0.2);
+        const targetY = clamp(muzzle.y, hitbox.y + margin, hitbox.y + hitbox.h - margin);
+        if (targetY < muzzle.y - 7) continue;
+        const slopeAngle = Math.atan2(Math.max(0, targetY - muzzle.y), ahead);
+        if (slopeAngle > 1.28) continue;
+        const score = ahead + Math.max(0, targetY - muzzle.y) * 0.12 -
+          (enemy.type === 'turret' ? 36 : 0);
+        if (score < bestScore) {
+          bestScore = score;
+          nearestAngle = slopeAngle;
+        }
+      }
+      if (nearestAngle !== null) return facingAngle(nearestAngle);
+      const heightAboveGround = groundAt(player.x) - (player.y + player.h);
+      if (!player.onGround || heightAboveGround > 44)
+        return facingAngle(lerp(0.28, 1.15, clamp((down - 0.25) / 0.75, 0, 1)));
+      return facingAngle(0);
+    }
+    return facingAngle(0);
   }
 
   function drawMuzzleFlash(entity) {
@@ -1052,10 +1091,13 @@
     if (!player || state.mode !== 'play' || state.paused || player.fireCooldown > 0 || state.respawnTimer > 0) return;
     player.fireCooldown = state.missionIndex === 0 ? 0.17 : Math.max(0.105, 0.15 - state.missionIndex * 0.003);
     const verticalInput = clamp(input.y, -1, 1);
-    // Down triggers a low stance, so low-stance shots travel horizontally.
-    const relativeAngle = player.crouching ? (verticalInput < -0.35 ? -0.35 : 0)
-      : Math.abs(verticalInput) > 0.28 ? (verticalInput < 0 ? -0.68 : 0.5) : 0;
-    const angle = player.direction > 0 ? relativeAngle : Math.PI - relativeAngle;
+    // FIRE can be pressed before updatePlayer, so don't launch the first
+    // crouched shot over the robot's head.
+    if (verticalInput > 0.56 && player.onGround) {
+      player.crouching = true;
+      player.crouchBlend = Math.max(player.crouchBlend || 0, 0.88);
+    }
+    const angle = playerShotAngle(player, verticalInput);
     const speed = 930;
     player.recoil = 1;
     const muzzle = actorMuzzle(player, angle);
