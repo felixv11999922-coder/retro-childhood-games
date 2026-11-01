@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.4.0';
+  const BUILD = '9.5.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -380,6 +380,8 @@
       walkPhase: 0,
       walkBlend: 0,
       animState: 'idle',
+      crouching: false,
+      crouchBlend: 0,
       stepDistance: 0,
       recoil: 0,
       muzzleFlash: 0,
@@ -394,8 +396,8 @@
       hitbox: [5, 7, 38, 86],
       sprite: [-22, -45, 92, 141],
       hp: 2,
-      speed: 34,
-      range: 90,
+      speed: 48,
+      range: 130,
       score: 120
     },
     runner: {
@@ -403,8 +405,8 @@
       hitbox: [5, 8, 36, 83],
       sprite: [-21, -43, 88, 137],
       hp: 1,
-      speed: 76,
-      range: 120,
+      speed: 104,
+      range: 155,
       score: 130
     },
     heavy: {
@@ -412,8 +414,8 @@
       hitbox: [8, 8, 52, 108],
       sprite: [-31, -62, 130, 182],
       hp: 6,
-      speed: 23,
-      range: 72,
+      speed: 31,
+      range: 96,
       score: 280
     },
     drone: {
@@ -439,8 +441,8 @@
       hitbox: [12, 10, 100, 142],
       sprite: [-45, -88, 214, 246],
       hp: 18,
-      speed: 32,
-      range: 155,
+      speed: 45,
+      range: 180,
       score: 1800
     }
   };
@@ -498,6 +500,13 @@
       aiState: 'spawn',
       observeTimer: 0,
       deathTimer: 0,
+      crouching: false,
+      crouchBlend: 0,
+      crouchTimer: 0,
+      crouchCooldown: random(1.4, 3.1),
+      jumpCooldown: random(1.25, 3.0),
+      vy: 0,
+      onGround: true,
       patrolDirection: index % 2 ? -1 : 1,
       thinkTimer: random(0.55, 1.35),
       recoil: 0,
@@ -644,12 +653,26 @@
   }
 
   function entityHitbox(entity) {
+    // Crouching reduces the hittable silhouette while feet and physics body stay put.
+    const standingHeight = entity.hitbox.h;
+    const crouch = entity.crouching && entity.onGround !== false;
+    const height = crouch ? Math.round(standingHeight * (entity.kind === 'player' ? 0.62 : 0.69)) : standingHeight;
     return {
       x: entity.x + entity.hitbox.ox,
-      y: entity.y + entity.hitbox.oy,
+      y: entity.y + entity.hitbox.oy + standingHeight - height,
       w: entity.hitbox.w,
-      h: entity.hitbox.h
+      h: height
     };
+  }
+
+  function playerCanStand(player) {
+    const top = player.y + player.hitbox.oy;
+    const lowTop = top + player.hitbox.h * 0.38;
+    const left = player.x + player.hitbox.ox, right = left + player.hitbox.w;
+    return !state.platforms.some(platform =>
+      right > platform.x && left < platform.x + platform.w &&
+      platform.y + platform.h > top && platform.y < lowTop
+    );
   }
 
   function entitySpriteRect(entity) {
@@ -695,17 +718,18 @@
   function actorPose(entity) {
     const speed = Math.abs(entity.vx || 0);
     const drone = entity.type === 'drone', turret = entity.type === 'turret';
-    const grounded = entity.kind === 'player' ? entity.onGround : !drone;
+    const grounded = entity.kind === 'player' ? entity.onGround : (!drone && entity.onGround !== false);
     const moving = !entity.dead && grounded && !turret && speed > (entity.kind === 'player' ? 18 : 4);
     const step = Math.sin(entity.walkPhase || 0);
     const idle = Math.sin(state.time * (entity.kind === 'player' ? 2.25 : 1.75) + (entity.phase || 0));
-    const walkMix = moving ? clamp(entity.walkBlend || 0, 0, 1) : 0;
+    const crouchBlend = grounded ? clamp(entity.crouchBlend || 0, 0, 1) : 0;
+    const walkMix = moving && crouchBlend < 0.15 ? clamp(entity.walkBlend || 0, 0, 1) : 0;
     let bob = moving ? -Math.abs(step) * 2 * walkMix : idle * 0.7;
     let rotation = moving ? (entity.direction || 1) * 0.022 * walkMix : idle * 0.004;
     let scaleX = 1 + (moving ? Math.abs(step) * 0.006 : idle * 0.002);
     let scaleY = 1 - (moving ? Math.abs(step) * 0.007 : idle * 0.003);
     let shear = moving ? step * 0.01 * walkMix : idle * 0.002;
-    if (entity.kind === 'player' && !entity.onGround) {
+    if (!grounded && !drone && !turret) {
       bob = 0;
       rotation = clamp((entity.vy || 0) / 9000, -0.055, 0.055) * (entity.direction || 1);
       scaleX = 0.985; scaleY = 1.018; shear = 0;
@@ -713,6 +737,14 @@
       bob = Math.sin(state.time * 4.8 + (entity.phase || 0)) * 2.2;
       rotation = Math.sin(state.time * 2.4 + (entity.phase || 0)) * 0.026;
       scaleX = 1; scaleY = 1; shear = 0;
+    }
+    // Squat around planted feet using original WebP, preserving visual muzzle transform.
+    if (crouchBlend > 0) {
+      bob = 0;
+      rotation += (entity.direction || 1) * crouchBlend * 0.035;
+      scaleX *= 1 + crouchBlend * 0.085;
+      scaleY *= 1 - crouchBlend * 0.34;
+      shear += (entity.direction || 1) * crouchBlend * 0.012;
     }
     if (entity.dead) {
       bob = 0;
@@ -723,7 +755,7 @@
     rotation -= direction * recoil * (turret ? 0.01 : 0.028);
     return {
       bob, rotation, scaleX: scaleX - recoil * 0.012,
-      scaleY: scaleY + recoil * 0.012, shear, walkMix, moving, step,
+      scaleY: scaleY + recoil * 0.012, shear, walkMix, crouchBlend, moving, step,
       recoilX: -direction * recoil * (entity.type === 'heavy' || entity.type === 'boss' ? 8 : 5.5),
       recoilY: recoil * 1.4
     };
@@ -954,7 +986,9 @@
     if (!player || state.mode !== 'play' || state.paused || player.fireCooldown > 0 || state.respawnTimer > 0) return;
     player.fireCooldown = state.missionIndex === 0 ? 0.17 : Math.max(0.105, 0.15 - state.missionIndex * 0.003);
     const verticalInput = clamp(input.y, -1, 1);
-    const relativeAngle = Math.abs(verticalInput) > 0.28 ? (verticalInput < 0 ? -0.68 : 0.5) : 0;
+    // Down triggers a low stance, so low-stance shots travel horizontally.
+    const relativeAngle = player.crouching ? (verticalInput < -0.35 ? -0.35 : 0)
+      : Math.abs(verticalInput) > 0.28 ? (verticalInput < 0 ? -0.68 : 0.5) : 0;
     const angle = player.direction > 0 ? relativeAngle : Math.PI - relativeAngle;
     const speed = 930;
     player.recoil = 1;
@@ -1024,6 +1058,8 @@
     const player = state.player;
     if (!player || state.mode !== 'play' || state.paused || state.respawnTimer > 0) return;
     if (player.onGround || player.coyote > 0) {
+      player.crouching = false;
+      player.crouchBlend = 0;
       player.vy = -720;
       player.onGround = false;
       player.coyote = 0;
@@ -1082,6 +1118,8 @@
     player.vx = 0;
     player.vy = 0;
     player.onGround = true;
+    player.crouching = false;
+    player.crouchBlend = 0;
     player.invulnerable = 1.8;
     state.projectiles = state.projectiles.filter((projectile) => projectile.owner === 'player' || Math.abs(projectile.x - player.x) > view.width * 0.7);
     state.camera.x = clamp(player.x - view.width * 0.4, 0, Math.max(0, currentLevel().length - view.width));
@@ -1126,7 +1164,10 @@
       return;
     }
 
-    const targetSpeed = input.x * 340;
+    const wantsCrouch = input.y > 0.56;
+    if (wantsCrouch && player.onGround) player.crouching = true;
+    else if (player.crouching && (!player.onGround || playerCanStand(player))) player.crouching = false;
+    const targetSpeed = input.x * (player.crouching ? 125 : 340);
     player.vx = damp(player.vx, targetSpeed, Math.abs(input.x) > 0.08 ? 13 : 18, dt);
     if (Math.abs(input.x) > 0.12) player.direction = Math.sign(input.x);
 
@@ -1146,13 +1187,16 @@
       }
     }
 
+    if (!player.onGround) player.crouching = false;
+    player.crouchBlend = damp(player.crouchBlend, player.crouching ? 1 : 0, 18, dt);
+
     const encounter = activeEncounter();
     const encounterLimit = encounter ? encounter.lockX - player.w - 20 : currentLevel().length - player.w - 35;
     player.x = clamp(player.x, 26, encounterLimit);
 
     player.walkBlend = damp(player.walkBlend, player.onGround ? clamp((Math.abs(player.vx) - 16) / 80, 0, 1) : 0, 12, dt);
-    player.animState = player.hitFlash > 0 ? 'hit' : !player.onGround ? (player.vy < 0 ? 'jump' : 'fall') : Math.abs(player.vx) > 18 ? 'run' : 'idle';
-    if (player.onGround && Math.abs(player.vx) > 18) {
+    player.animState = player.hitFlash > 0 ? 'hit' : !player.onGround ? (player.vy < 0 ? 'jump' : 'fall') : player.crouching ? 'crouch' : Math.abs(player.vx) > 18 ? 'run' : 'idle';
+    if (player.onGround && !player.crouching && Math.abs(player.vx) > 18) {
       player.walkPhase += Math.abs(player.vx) * dt * 0.035;
       player.stepDistance += Math.abs(player.vx) * dt;
       if (player.stepDistance >= 44) {
@@ -1193,6 +1237,9 @@
       return;
     }
     enemy.observeTimer = Math.max(0, (enemy.observeTimer || 0) - dt);
+    enemy.jumpCooldown = Math.max(0, enemy.jumpCooldown - dt);
+    enemy.crouchCooldown = Math.max(0, enemy.crouchCooldown - dt);
+    enemy.crouchTimer = Math.max(0, enemy.crouchTimer - dt);
 
     enemy.fireCooldown -= dt;
     enemy.thinkTimer = Math.max(0, (enemy.thinkTimer || 0) - dt);
@@ -1212,7 +1259,6 @@
       else if (distance < 88) desiredSpeed = -Math.sign(dx) * enemy.speed * 0.62;
       enemy.vx = damp(enemy.vx || 0, desiredSpeed, 7.5, dt);
       enemy.x += enemy.vx * dt;
-      enemy.y = groundAt(enemy.x) - enemy.h;
     } else if (enemy.type === 'rifle' || enemy.type === 'heavy') {
       const minX = enemy.homeX - enemy.moveRange;
       const maxX = enemy.homeX + enemy.moveRange;
@@ -1238,32 +1284,74 @@
       if (enemy.x >= maxX - 3) enemy.patrolDirection = -1;
       enemy.vx = damp(enemy.vx || 0, desiredSpeed, 5.8, dt);
       enemy.x = clamp(enemy.x + enemy.vx * dt, minX, maxX);
-      enemy.y = groundAt(enemy.x) - enemy.h;
     } else if (enemy.type === 'boss') {
       enemy.aiState = 'advance';
       const encounter = state.encounters.find((item) => item.id === enemy.encounterId);
       const minX = encounter ? encounter.trigger + 240 : enemy.homeX - enemy.moveRange;
       const maxX = encounter ? encounter.lockX - enemy.w - 70 : enemy.homeX + enemy.moveRange;
       const bossTarget = clamp(player.x + 300, minX, maxX);
-      enemy.x = damp(enemy.x, bossTarget, 0.45, dt);
-      enemy.y = groundAt(enemy.x) - enemy.h;
+      enemy.x = damp(enemy.x, bossTarget, 0.58, dt);
     } else {
       enemy.aiState = 'aim';
       enemy.vx = 0;
       enemy.y = groundAt(enemy.x) - enemy.h;
     }
 
+    const groundedFighter = enemy.type !== 'drone' && enemy.type !== 'turret';
+    if (groundedFighter) {
+      const closeFight = distance > 95 && distance < (enemy.type === 'boss' ? 760 : 530);
+      const incoming = state.projectiles.some(bullet =>
+        bullet.owner === 'player' && bullet.life > 0 &&
+        Math.abs(bullet.x - enemy.x) < 170 &&
+        (enemy.x - bullet.x) * bullet.vx > 0 &&
+        Math.abs(bullet.y - (enemy.y + enemy.h * 0.53)) < enemy.h * 0.8
+      );
+      if (enemy.onGround && enemy.jumpCooldown <= 0 && closeFight && !enemy.crouching &&
+          (enemy.type === 'runner' || enemy.type === 'boss' || incoming || random(0, 1) < 0.5)) {
+        enemy.vy = enemy.type === 'runner' ? -615 : enemy.type === 'heavy' ? -410 : enemy.type === 'boss' ? -555 : -505;
+        enemy.onGround = false;
+        enemy.crouching = false;
+        enemy.crouchTimer = 0;
+        enemy.jumpCooldown = random(enemy.type === 'runner' ? 2 : 3.2, enemy.type === 'runner' ? 3.2 : 5.6);
+        enemy.aiState = 'jump';
+        makeParticles(enemy.x + enemy.w * 0.5, enemy.y + enemy.h, '#c2a17b', 3, -Math.PI / 2, 65);
+      }
+      if (!enemy.onGround) {
+        enemy.vy += 1740 * dt;
+        enemy.y += enemy.vy * dt;
+        const floor = groundAt(enemy.x) - enemy.h;
+        if (enemy.vy >= 0 && enemy.y >= floor && !isPitAt(enemy.x + enemy.w * 0.5)) {
+          enemy.y = floor;
+          enemy.vy = 0;
+          enemy.onGround = true;
+          enemy.aiState = 'land';
+          makeParticles(enemy.x + enemy.w * 0.5, enemy.y + enemy.h, '#baa17d', 3, -Math.PI / 2, 60);
+        }
+      } else {
+        enemy.y = groundAt(enemy.x) - enemy.h;
+        enemy.vy = 0;
+      }
+      if (enemy.onGround && enemy.crouchCooldown <= 0 && distance < 590 &&
+          (enemy.type !== 'runner' || incoming) && enemy.jumpCooldown > 0.35) {
+        enemy.crouchTimer = random(enemy.type === 'heavy' ? 0.8 : 0.48, enemy.type === 'heavy' ? 1.3 : 0.95);
+        enemy.crouchCooldown = random(2.4, 4.5);
+      }
+      enemy.crouching = enemy.onGround && enemy.crouchTimer > 0;
+      enemy.crouchBlend = damp(enemy.crouchBlend, enemy.crouching ? 1 : 0, 14, dt);
+      if (enemy.crouching) enemy.aiState = 'crouch';
+      else if (!enemy.onGround) enemy.aiState = enemy.vy < 0 ? 'jump' : 'fall';
+    }
     enemy.vx = (enemy.x - previousX) / Math.max(dt, 0.001);
-    if (Math.abs(enemy.vx) > 2 && enemy.type !== 'drone' && enemy.type !== 'turret') {
+    if (Math.abs(enemy.vx) > 2 && enemy.onGround && !enemy.crouching && enemy.type !== 'drone' && enemy.type !== 'turret') {
       enemy.walkPhase += Math.abs(enemy.vx) * dt * (enemy.type === 'runner' ? 0.09 : enemy.type === 'heavy' || enemy.type === 'boss' ? 0.14 : 0.13);
     }
-    enemy.walkBlend = damp(enemy.walkBlend, !['drone', 'turret'].includes(enemy.type) ? clamp((Math.abs(enemy.vx) - 3) / Math.max(10, enemy.speed * 0.45), 0, 1) : 0, 8.5, dt);
+    enemy.walkBlend = damp(enemy.walkBlend, groundedFighter && enemy.onGround && !enemy.crouching ? clamp((Math.abs(enemy.vx) - 3) / Math.max(10, enemy.speed * 0.45), 0, 1) : 0, 8.5, dt);
     if (enemy.hitFlash > 0) enemy.aiState = 'hit';
     const fireRange = enemy.type === 'boss' ? 820 : enemy.type === 'drone' ? 720 : 670;
     const facingDx = player.x + player.w * 0.5 - (enemy.x + enemy.w * 0.5);
     if (Math.abs(facingDx) < fireRange + 90 || Math.abs(enemy.vx) < 2) enemy.direction = facingDx < 0 ? -1 : 1;
     else enemy.direction = enemy.vx < 0 ? -1 : 1;
-    if (enemy.fireCooldown <= 0 && enemy.type !== 'runner' && Math.abs(facingDx) < fireRange) fireEnemyWeapon(enemy);
+    if (enemy.fireCooldown <= 0 && enemy.type !== 'runner' && Math.abs(facingDx) < fireRange && (enemy.onGround || enemy.type === 'drone' || state.missionIndex > 0)) fireEnemyWeapon(enemy);
   }
 
   function updateProjectiles(dt) {
