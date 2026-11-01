@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.7.0';
+  const BUILD = '9.8.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -151,8 +151,9 @@
     rifle: CLEAN_FIGHTER,
     runner: CLEAN_FIGHTER,
     heavy: CLEAN_FIGHTER,
-    drone: window.SteelAssaultPhotoActors?.drone,
-    turret: window.SteelAssaultPhotoActors?.turret,
+    // Mechanical enemies are drawn by Canvas primitives (no baked-in blue cards).
+    drone: null,
+    turret: null,
     boss: CLEAN_FIGHTER
   };
 
@@ -788,6 +789,21 @@
 
   function actorMuzzle(entity, shotAngle = null) {
     const sprite = entitySpriteRect(entity);
+    // Mechanical guns and visual barrels share these exact world coordinates.
+    // Unlike the old cropped image, their drawing has no opaque background.
+    if (entity.type === 'drone' || entity.type === 'turret') {
+      const angle = Number.isFinite(shotAngle) ? shotAngle :
+        (entity.direction > 0 ? 0 : Math.PI);
+      const direction = entity.direction > 0 ? 1 : -1;
+      const bodyY = entity.type === 'drone' ? 0.50 : 0.45;
+      const muzzleY = entity.type === 'drone' ? 0.54 : 0.43;
+      const xReach = entity.type === 'drone' ? 0.47 : 0.48;
+      return {
+        x: sprite.x + sprite.w * (0.5 + direction * xReach),
+        y: sprite.y + sprite.h * muzzleY,
+        angle
+      };
+    }
     const direction = entity.direction || 1;
     const profile = MUZZLE_PROFILES[entity.type] || MUZZLE_PROFILES.rifle;
     const pose = actorPose(entity);
@@ -2581,6 +2597,191 @@
     ctx.restore();
   }
 
+  // Fully procedural enemies: no HTML images, no blue backing rectangle.
+  // Drawn in local coordinates relative to the sprite center, so projectiles
+  // can originate from the corresponding mechanical muzzle world coordinates.
+  function drawDroneUnit(entity) {
+    const sprite = entitySpriteRect(entity);
+    if (!visibleX(sprite.x - state.camera.x, sprite.w)) return;
+    const x = sprite.x + sprite.w * 0.5 - state.camera.x;
+    const y = sprite.y + sprite.h * 0.5;
+    const w = sprite.w, h = sprite.h, direction = entity.direction > 0 ? 1 : -1;
+    const pulse = (Math.sin(state.time * 13 + (entity.phase || 0)) + 1) * 0.5;
+    const wobble = Math.sin(state.time * 3.4 + (entity.phase || 0)) * 0.025;
+    const recoil = clamp(entity.recoil || 0, 0, 1);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(wobble);
+    if (entity.hitFlash > 0) ctx.filter = 'brightness(2.0)';
+
+    // Two independent thrusters, illuminated below the hull.
+    for (const side of [-1, 1]) {
+      const tx = side * w * 0.22;
+      const flame = h * (0.16 + pulse * 0.11);
+      ctx.fillStyle = 'rgba(245,102,40,.2)';
+      ctx.beginPath();
+      ctx.ellipse(tx, h * 0.28 + flame * 0.48, w * 0.11, flame, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#ff8c42';
+      ctx.beginPath();
+      ctx.moveTo(tx - w * 0.053, h * 0.23);
+      ctx.lineTo(tx, h * 0.23 + flame);
+      ctx.lineTo(tx + w * 0.053, h * 0.23);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#f5e3a6';
+      ctx.fillRect(tx - w * 0.022, h * 0.23, w * 0.044, flame * 0.38);
+    }
+
+    // Swept metal wings: explicitly bounded polygon, never a rectangular card.
+    const wing = ctx.createLinearGradient(0, -h * 0.12, 0, h * 0.20);
+    wing.addColorStop(0, '#78858b');
+    wing.addColorStop(0.45, '#35434d');
+    wing.addColorStop(1, '#151f2a');
+    ctx.fillStyle = wing;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * w * 0.17, -h * 0.14);
+      ctx.lineTo(side * w * 0.43, -h * 0.22);
+      ctx.lineTo(side * w * 0.49, -h * 0.045);
+      ctx.lineTo(side * w * 0.37, h * 0.13);
+      ctx.lineTo(side * w * 0.18, h * 0.22);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#89949b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(side * w * 0.26, -h * 0.04);
+      ctx.lineTo(side * w * 0.43, -h * 0.075);
+      ctx.stroke();
+      ctx.fillStyle = '#101e24';
+      ctx.fillRect(side * w * 0.22 - w * 0.058, h * 0.11, w * 0.116, h * 0.16);
+    }
+
+    // Barrel points toward the player, and uses the same muzzle as actorMuzzle.
+    ctx.save();
+    ctx.translate(-direction * recoil * w * 0.015, 0);
+    ctx.fillStyle = '#131d27';
+    ctx.fillRect(direction > 0 ? w * 0.20 : -w * 0.47, h * 0.005, w * 0.27, h * 0.075);
+    ctx.fillStyle = '#87949d';
+    ctx.fillRect(direction > 0 ? w * 0.25 : -w * 0.44, h * 0.005, w * 0.19, h * 0.018);
+    ctx.fillStyle = '#e17f40';
+    ctx.fillRect(direction > 0 ? w * 0.455 : -w * 0.47, h * 0.025, w * 0.015, h * 0.038);
+    ctx.restore();
+
+    const shell = ctx.createLinearGradient(0, -h * 0.26, 0, h * 0.26);
+    shell.addColorStop(0, '#778b94');
+    shell.addColorStop(0.32, '#435665');
+    shell.addColorStop(0.7, '#202f3c');
+    shell.addColorStop(1, '#0f1721');
+    ctx.fillStyle = shell;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.26, -h * 0.14);
+    ctx.lineTo(-w * 0.16, -h * 0.30);
+    ctx.lineTo(w * 0.17, -h * 0.30);
+    ctx.lineTo(w * 0.27, -h * 0.08);
+    ctx.lineTo(w * 0.22, h * 0.22);
+    ctx.lineTo(-w * 0.22, h * 0.22);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#96aab1';
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#18242d';
+    ctx.beginPath();
+    ctx.ellipse(0, -h * 0.03, w * 0.15, h * 0.17, 0, 0, TAU);
+    ctx.fill();
+    const lens = ctx.createRadialGradient(0, -h * 0.045, 1, 0, -h * 0.045, w * 0.12);
+    lens.addColorStop(0, '#fff9c7');
+    lens.addColorStop(0.25, '#ff785b');
+    lens.addColorStop(0.52, '#cc292a');
+    lens.addColorStop(1, 'rgba(207,39,41,.05)');
+    ctx.fillStyle = lens;
+    ctx.beginPath();
+    ctx.arc(0, -h * 0.045, w * 0.085, 0, TAU);
+    ctx.fill();
+
+    // Animated top rotors are slender strokes, with no image edge or panel.
+    ctx.strokeStyle = '#95a4ad';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.20, -h * 0.29); ctx.lineTo(-w * 0.20, -h * 0.42);
+    ctx.moveTo(w * 0.20, -h * 0.29); ctx.lineTo(w * 0.20, -h * 0.42);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(160,209,215,.75)';
+    ctx.lineWidth = 2 + pulse * 1.2;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(side * w * 0.20, -h * 0.42, w * (0.10 + pulse * 0.025), h * 0.026, 0, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // A matching stationary cannon replaces the old turret PNG, which also
+  // contained a blue rectangular background in the level screenshots.
+  function drawTurretUnit(entity) {
+    const sprite = entitySpriteRect(entity);
+    if (!visibleX(sprite.x - state.camera.x, sprite.w)) return;
+    const w = sprite.w, h = sprite.h;
+    const x = sprite.x + w * 0.5 - state.camera.x;
+    const y = sprite.y + h * 0.45;
+    const direction = entity.direction > 0 ? 1 : -1;
+    const recoil = clamp(entity.recoil || 0, 0, 1);
+    ctx.save();
+    ctx.translate(x, y);
+    if (entity.hitFlash > 0) ctx.filter = 'brightness(2.1)';
+    ctx.fillStyle = '#1b222b';
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.3, h * 0.38);
+    ctx.lineTo(w * 0.3, h * 0.38);
+    ctx.lineTo(w * 0.4, h * 0.52);
+    ctx.lineTo(-w * 0.4, h * 0.52);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#778a8f';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.24, h * 0.34); ctx.lineTo(-w * 0.32, h * 0.49);
+    ctx.moveTo(w * 0.24, h * 0.34); ctx.lineTo(w * 0.32, h * 0.49);
+    ctx.stroke();
+    ctx.fillStyle = '#3a4750';
+    ctx.fillRect(-w * 0.24, h * 0.14, w * 0.48, h * 0.26);
+    ctx.save();
+    ctx.translate(-direction * recoil * w * 0.015, 0);
+    ctx.fillStyle = '#172029';
+    ctx.fillRect(direction > 0 ? w * 0.02 : -w * 0.48, -h * 0.06, w * 0.46, h * 0.085);
+    ctx.fillStyle = '#a4afb1';
+    ctx.fillRect(direction > 0 ? w * 0.16 : -w * 0.44, -h * 0.04, w * 0.26, h * 0.018);
+    ctx.fillStyle = '#e8a25a';
+    ctx.fillRect(direction > 0 ? w * 0.46 : -w * 0.48, -h * 0.065, w * 0.018, h * 0.10);
+    ctx.restore();
+    const plate = ctx.createLinearGradient(0, -h * 0.32, 0, h * 0.20);
+    plate.addColorStop(0, '#89959b');
+    plate.addColorStop(0.48, '#43515b');
+    plate.addColorStop(1, '#222c35');
+    ctx.fillStyle = plate;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.21, h * 0.12);
+    ctx.lineTo(-w * 0.17, -h * 0.26);
+    ctx.lineTo(w * 0.15, -h * 0.32);
+    ctx.lineTo(w * 0.25, h * 0.08);
+    ctx.lineTo(w * 0.18, h * 0.24);
+    ctx.lineTo(-w * 0.19, h * 0.24);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#171f27';
+    ctx.beginPath();
+    ctx.arc(0, -h * 0.035, w * 0.095, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#e94d3d';
+    ctx.beginPath();
+    ctx.arc(0, -h * 0.035, w * 0.043, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawPlayer() {
     const player = state.player;
     if (!player || state.respawnTimer > 0) return;
@@ -2616,13 +2817,11 @@
       }
 
       if (!enemy.dead && enemy.type !== 'drone') drawShadow(enemy, enemy.type === 'boss' ? 0.42 : 0.29);
-      drawActorImage(IMAGES[enemy.type] || IMAGES.rifle, enemy,
+      if (enemy.type === 'drone') drawDroneUnit(enemy);
+      else if (enemy.type === 'turret') drawTurretUnit(enemy);
+      else drawActorImage(IMAGES[enemy.type] || IMAGES.rifle, enemy,
         HUMANOID_ENEMIES.has(enemy.type) ? enemy.direction < 0 : enemy.direction > 0);
       if (!enemy.dead) drawMuzzleFlash(enemy);
-
-      if (enemy.type === 'boss' && IMAGES.turret?.complete) {
-        ctx.drawImage(IMAGES.turret, x + sprite.w * 0.47, sprite.y + 20, sprite.w * 0.46, sprite.h * 0.27);
-      }
       ctx.restore();
 
       if (!enemy.dead && enemy.hp < enemy.maxHp && enemy.spawnTimer <= 0) {
