@@ -1,0 +1,24 @@
+name: Territorial zones ingestion CI
+on:
+  push:
+    paths:
+      - 'land-map/collector/zones_ingest.py'
+      - 'land-map/collector/test_zones_ingest.py'
+      - '.github/workflows/territorial-zones-ci.yml'
+  pull_request:
+    paths:
+      - 'land-map/collector/zones_ingest.py'
+      - 'land-map/collector/test_zones_ingest.py'
+      - '.github/workflows/territorial-zones-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s land-map/collector -p 'test_zones_ingest.py' -v
