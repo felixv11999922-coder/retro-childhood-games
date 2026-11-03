@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "regions": [
+    {
+      "code": "50",
+      "name": "Московская область",
+      "sources": [
+        {
+          "name": "РГИС Московской области",
+          "url": "https://rgis.mosreg.ru/v3/#/",
+          "kind": "official_geoportal",
+          "access": "public_web_interface",
+          "vector_api_verified": false
+        },
+        {
+          "name": "ПЗЗ Рузского муниципального округа",
+          "url": "https://ruzaregion.ru/municipalitet/kontrolno-schetnaya_palata/pzz_new?mode=access",
+          "kind": "official_municipal_documents",
+          "access": "public_documents",
+          "vector_api_verified": false
+        }
+      ]
+    },
+    {
+      "code": "77",
+      "name": "Москва",
+      "sources": [
+        {
+          "name": "ИАИС ОГД Москвы",
+          "url": "https://isogd.mos.ru/",
+          "kind": "official_geoportal",
+          "access": "public_web_interface",
+          "vector_api_verified": false
+        }
+      ]
+    },
+    {
+      "code": "00",
+      "name": "Федеральные источники",
+      "sources": [
+        {
+          "name": "НСПД WFS discovery",
+          "url": "https://nspd.rosreestr.gov.ru/api/wfs/v2",
+          "kind": "wfs_candidate",
+          "access": "unknown",
+          "vector_api_verified": false
+        }
+      ]
+    }
+  ],
+  "notes": "Registry lists documented official entry points, not licensed/verified downloadable territorial-zone geometry. WFS discovery is a hypothesis until live GetCapabilities is validated."
+}
