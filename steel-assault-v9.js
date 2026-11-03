@@ -12,7 +12,7 @@
   if (window.__STEEL_ASSAULT_V9__) return;
   window.__STEEL_ASSAULT_V9__ = true;
 
-  const BUILD = '9.10.0';
+  const BUILD = '9.11.0';
   const WORLD_HEIGHT = 820;
   const START_X = 145;
   const TAU = Math.PI * 2;
@@ -136,26 +136,11 @@
     { type: 'growth', x: 5290, scale: 1.18 }
   ];
 
-  // The old enemy WebP is a collage of TWO soldiers and a red crate.
-  // Render a single isolated fighter silhouette instead, not the whole collage.
+  // All hostile humanoids are drawn from independent procedural silhouettes.
+  // The hero artwork remains exclusive to the player.
   const CLEAN_FIGHTER = window.SteelAssaultHeroV6 || window.SteelAssaultPhotoActors?.hero;
   const HUMANOID_ENEMIES = new Set(['rifle', 'runner', 'heavy', 'boss']);
-  const ENEMY_GRADES = {
-    rifle: 'grayscale(.52) sepia(.18) saturate(.78) brightness(.78)',
-    runner: 'grayscale(.42) sepia(.25) hue-rotate(130deg) saturate(.82) brightness(.84)',
-    heavy: 'grayscale(.78) sepia(.28) brightness(.65) contrast(1.1)',
-    boss: 'grayscale(.3) sepia(.58) hue-rotate(325deg) saturate(1.2) brightness(.7)'
-  };
-  const ASSET_SOURCES = {
-    hero: CLEAN_FIGHTER,
-    rifle: CLEAN_FIGHTER,
-    runner: CLEAN_FIGHTER,
-    heavy: CLEAN_FIGHTER,
-    // Mechanical enemies are drawn by Canvas primitives (no baked-in blue cards).
-    drone: null,
-    turret: null,
-    boss: CLEAN_FIGHTER
-  };
+  const ASSET_SOURCES = { hero: CLEAN_FIGHTER };
 
   const IMAGES = {};
   const sharedImages = new Map();
@@ -839,8 +824,14 @@
       };
     }
     const direction = entity.direction || 1;
-    const profile = MUZZLE_PROFILES[entity.type] || MUZZLE_PROFILES.rifle;
     const pose = actorPose(entity);
+    // Aim and muzzle flash share the exact weapon-tip transform of the
+    // independently rendered hostile soldier (including crouch and recoil).
+    if (HUMANOID_ENEMIES.has(entity.type)) {
+      const bullet = window.SteelAssaultEnemyFigures?.muzzle(entity, sprite, pose, shotAngle);
+      if (bullet) return bullet;
+    }
+    const profile = MUZZLE_PROFILES[entity.type] || MUZZLE_PROFILES.rifle;
     // Humanoid enemies now use the right-facing source silhouette.
     const rightFacingSource = entity.kind === 'player' || HUMANOID_ENEMIES.has(entity.type);
     const mirrored = rightFacingSource ? direction < 0 : direction > 0;
@@ -2626,28 +2617,6 @@
     ctx.globalAlpha = alpha;
   }
 
-  // Helmet plus a narrow red identification stripe distinguishes hostile
-  // soldiers from the player, without introducing baked-in backgrounds.
-  function drawEnemyHelmet(entity, sprite) {
-    if (!HUMANOID_ENEMIES.has(entity.type) || entity.dead) return;
-    const w = sprite.w, h = sprite.h;
-    ctx.save();
-    ctx.filter = 'none';
-    const helmetColor = entity.type === 'boss' ? '#813735' :
-      entity.type === 'heavy' ? '#474b43' :
-      entity.type === 'runner' ? '#4b6460' : '#64644e';
-    ctx.fillStyle = helmetColor;
-    ctx.beginPath();
-    ctx.ellipse(-w * 0.04, -h * 0.91, w * 0.165, h * 0.07, -0.08, Math.PI, Math.PI * 2);
-    ctx.lineTo(w * 0.13, -h * 0.875);
-    ctx.lineTo(-w * 0.21, -h * 0.875);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#d15d4c';
-    ctx.fillRect(-w * 0.18, -h * 0.891, w * 0.25, Math.max(1.6, h * 0.011));
-    ctx.restore();
-  }
-
   function drawActorImage(image, entity, flip = false) {
     const sprite = entitySpriteRect(entity);
     const x = sprite.x - state.camera.x;
@@ -2660,8 +2629,7 @@
     ctx.rotate(pose.rotation);
     ctx.transform(flip ? -pose.scaleX : pose.scaleX, 0, pose.shear * (flip ? -1 : 1), pose.scaleY, 0, 0);
     if (entity.hitFlash > 0) ctx.filter = 'brightness(2.15) saturate(.35) sepia(.45)';
-    else if (entity.kind === 'enemy' && HUMANOID_ENEMIES.has(entity.type))
-      ctx.filter = ENEMY_GRADES[entity.type];
+
 
     if (!image?.complete || !image.naturalWidth) {
       ctx.fillStyle = entity.kind === 'player' ? '#e47a4d' : entity.type === 'drone' ? '#4b97a5' : '#b55b48';
@@ -2673,8 +2641,6 @@
     } else {
       ctx.drawImage(image, -sprite.w * 0.5, -sprite.h, sprite.w, sprite.h);
     }
-    if (entity.kind === 'enemy' && image?.complete && image.naturalWidth)
-      drawEnemyHelmet(entity, sprite);
     ctx.restore();
   }
 
@@ -2902,8 +2868,17 @@
       if (!enemy.dead && enemy.type !== 'drone') drawShadow(enemy, enemy.type === 'boss' ? 0.42 : 0.29);
       if (enemy.type === 'drone') drawDroneUnit(enemy);
       else if (enemy.type === 'turret') drawTurretUnit(enemy);
-      else drawActorImage(IMAGES[enemy.type] || IMAGES.rifle, enemy,
-        HUMANOID_ENEMIES.has(enemy.type) ? enemy.direction < 0 : enemy.direction > 0);
+      else if (HUMANOID_ENEMIES.has(enemy.type)) {
+        // All four figures are separate from the hero's image and from
+        // one another. The fallback is a solid silhouette, never a hero clone.
+        const drawn = window.SteelAssaultEnemyFigures?.draw(
+          ctx, enemy, sprite, state.camera.x, state.time, actorPose(enemy));
+        if (!drawn) {
+          ctx.fillStyle = '#475b60';
+          ctx.fillRect(x + sprite.w * 0.28, sprite.y + sprite.h * 0.12,
+            sprite.w * 0.44, sprite.h * 0.85);
+        }
+      }
       if (!enemy.dead) drawMuzzleFlash(enemy);
       ctx.restore();
 
