@@ -1,0 +1,32 @@
+name: Discover territorial-zone WFS
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '25 4 * * 1'
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check national WFS capabilities
+        continue-on-error: true
+        run: |
+          python land-map/collector/wfs_discover.py https://nspd.rosreestr.gov.ru/api/wfs/v2 > wfs-national.json
+      - name: Record result even if endpoint unavailable
+        if: always()
+        run: |
+          if [ ! -s wfs-national.json ]; then
+            echo '{"endpoint":"https://nspd.rosreestr.gov.ru/api/wfs/v2","feature_types":[],"verified_pzz":false,"status":"unavailable_or_blocked"}' > wfs-national.json
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wfs-discovery
+          path: wfs-national.json
+          retention-days: 14
